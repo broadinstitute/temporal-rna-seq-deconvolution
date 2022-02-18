@@ -719,3 +719,134 @@ def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=
         "L2_error": L2_error,
         "L2_error_norm": L2_error_norm,
     }
+
+
+def sample_sigmoid_proportions(num_cell_types, num_samples, t_m):
+    # generate the celltype proportions
+    effect_size = torch.rand(num_cell_types)  # 0,1
+    shift = torch.rand(num_cell_types)
+    magnitude = torch.where(torch.rand(num_cell_types) < 0.5, -1.0, 1.0)
+
+    # Generate cell population mc
+    cell_pop_cm = torch.zeros(num_cell_types, num_samples)
+    for i in range(num_cell_types):
+        cell_pop_cm[i, :] = (
+            torch.Tensor(list(sigmoid(magnitude[i] * x + shift[i]) for x in t_m))
+            * effect_size[i]
+        )
+    cell_pop_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0)
+
+    return {
+        "trajectory_params": {
+            "type": "sigmoid",
+            "effect_size": effect_size,
+            "shift": shift,
+            "magnitude": magnitude,
+        },
+        "cell_pop_cm": cell_pop_cm,
+    }
+
+
+def simulate_with_sigmoid_proportions(
+    reference_deconvolution,
+    start_time=-5,
+    end_time=5,
+    step=1,
+    num_samples=100,
+    lib_size_mean=1e6,
+    lib_size_std=2e5,
+    use_betas=False,
+):
+    """Simulate bulk data with compositional changes"""
+
+    # Discrete timepoints to sample from
+    xs = torch.arange(start_time, end_time, step)
+
+    # Number of celltypes are same as in main deconvolution
+    num_cell_types = reference_deconvolution.w_hat_gc.shape[1]
+
+    # Sample the times for the samples
+    t_m = xs[torch.randint(len(xs), (num_samples,))]
+
+    proportions_sample = sample_sigmoid_proportions(num_cell_types, num_samples, t_m)
+
+    cell_pop_cm = proportions_sample["cell_pop_cm"]
+
+    # Get phis and betas from main model
+    # phi_g ~ 0.1 - 0.2
+
+    phi_g = pyro.param("log_phi_posterior_loc_g").detach().exp().cpu()
+    beta_g = pyro.param("log_beta_posterior_loc_g").detach().exp().cpu()
+
+    # Get celltype profiles from the model
+    w_hat_gc = reference_deconvolution.w_hat_gc.detach().cpu()
+    if use_betas:
+        unnorm_w_hat_gc = w_hat_gc * beta_g[:, None]
+    else:
+        unnorm_w_hat_gc = w_hat_gc
+
+    # Normalize
+    w_gc = unnorm_w_hat_gc / unnorm_w_hat_gc.sum(0)
+
+    # Get some library sizes
+    lib_sizes_m = torch.normal(
+        mean=torch.full([num_samples], lib_size_mean),
+        std=torch.full([num_samples], lib_size_std),
+    )
+
+    # Get the NegBinomial means
+    # consider: random component on w_gc?
+    # b_gc -> gene + celltype specific distortion ( how does inference degrade as this increases )
+    # sample b_gc from laplace (mu = 1, beta(scale) = )
+    # Gamma(mean = 1, var = 1/rate)
+    # rate = concentration = a
+    # 1/a = var of gamma distribution
+    # sample beta_cg
+    mu_mg = lib_sizes_m[:, None] * torch.matmul(cell_pop_cm.T, w_gc.transpose(-1, -2))
+
+    # Sample a full matrix using phis from main model
+    x_ng = NegativeBinomialAltParam(mu=mu_mg, phi=phi_g).sample()
+
+    return {
+        "cell_pop_cm": cell_pop_cm,
+        "t_m": t_m,
+        "x_ng": x_ng,
+        "trajectory_params": proportions_sample["trajectory_params"],
+    }
+
+
+def plot_simulated_proportions(sim_res):
+    """Plot simulated proportion results"""
+
+    fig, ax = matplotlib.pyplot.subplots()
+    o = torch.argsort(sim_res["t_m"])
+    ax.plot(sim_res["t_m"][o], sim_res["cell_pop_cm"][:, o].T)
+    ax.set_title("Simulated proportions")
+    ax.set_xlabel("Set time")
+    ax.set_ylabel("Proportions")
+
+    return ax
+
+
+def generate_anndata_from_sim(sim_res, reference_deconvolution):
+    """Generate AnnData object from the simulation results
+
+    Time is stored in the time dimension
+    """
+
+    var_tmp = pd.DataFrame({"gene": reference_deconvolution.dataset.selected_genes})
+    var_tmp = var_tmp.set_index("gene")
+
+    return anndata.AnnData(
+        X=sim_res["x_ng"].numpy(),
+        var=var_tmp,
+        obs=pd.DataFrame({"time": sim_res["t_m"]}),
+    )
+
+
+def sigmoid(x):
+
+    z = np.exp(-x)
+    sig = 1 / (1 + z)
+
+    return sig
