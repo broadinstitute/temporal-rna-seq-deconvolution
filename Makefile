@@ -1,0 +1,4 @@
+lint: FORCE
+	black .
+
+FORCE:
