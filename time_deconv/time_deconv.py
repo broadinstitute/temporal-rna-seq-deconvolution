@@ -43,6 +43,10 @@ from sklearn.pipeline import make_pipeline
 import functools
 from scipy.special import legendre
 
+import tqdm
+import copy
+
+
 # Indices:
 
 # - c cell type
@@ -128,7 +132,6 @@ class DeconvolutionDataset:
     def __select_features(
         self, bulk_anndata, sc_anndata, feature_selection_method, dispersion_cutoff=5
     ):
-        print(f"feature selection method: {feature_selection_method}")
 
         if feature_selection_method == "common":
             self.selected_genes = list(
@@ -178,8 +181,6 @@ class DeconvolutionDataset:
             self.selected_genes = list(
                 selected_genes_bulk.intersection(selected_genes_sc)
             )
-
-        print(f"selected {len(self.selected_genes)} genes")
 
         return self.selected_genes
 
@@ -239,9 +240,16 @@ def generate_batch(
 ):
 
     return {
-        "x_mg": torch.tensor(dataset.bulk_raw_gex_mg, device=device, dtype=dtype),
+        "x_mg": dataset.bulk_raw_gex_mg.clone().detach().to(device).type(dtype),
         "t_m": torch.tensor(dataset.dpi_time_m, device=device, dtype=dtype),
+        # "t_m": dataset.dpi_time_m.clone().detach().to(device).type(dtype)
     }
+
+
+#     return {
+#         "x_mg": torch.tensor(dataset.bulk_raw_gex_mg, device=device, dtype=dtype),
+#         "t_m": torch.tensor(dataset.dpi_time_m, device=device, dtype=dtype),
+#     }
 
 
 class TimeRegularizedDeconvolution:
@@ -850,3 +858,107 @@ def sigmoid(x):
     sig = 1 / (1 + z)
 
     return sig
+
+
+def sample_sigmoid_proportions(num_cell_types, num_samples, t_m):
+    # generate the celltype proportions
+    effect_size = torch.rand(num_cell_types)  # 0,1
+    shift = torch.rand(num_cell_types)
+    magnitude = torch.where(torch.rand(num_cell_types) < 0.5, -1.0, 1.0)
+
+    # Generate cell population mc
+    cell_pop_cm = torch.zeros(num_cell_types, num_samples)
+    for i in range(num_cell_types):
+        cell_pop_cm[i, :] = (
+            torch.Tensor(list(sigmoid(magnitude[i] * x + shift[i]) for x in t_m))
+            * effect_size[i]
+        )
+    cell_pop_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0)
+
+    return {
+        "trajectory_params": {
+            "type": "sigmoid",
+            "effect_size": effect_size,
+            "shift": shift,
+            "magnitude": magnitude,
+        },
+        "cell_pop_cm": cell_pop_cm,
+    }
+
+
+def evaluate_model(params: dict, reference_deconvolution: TimeRegularizedDeconvolution):
+
+    sim_res = simulate_with_sigmoid_proportions(
+        **params["simulation_params"], reference_deconvolution=reference_deconvolution
+    )
+
+    simulated_bulk = generate_anndata_from_sim(
+        sim_res=sim_res, reference_deconvolution=reference_deconvolution
+    )
+
+    simulated_dataset = DeconvolutionDataset(
+        bulk_anndata=simulated_bulk, **params["deconvolution_dataset_params"]
+    )
+
+    simulated_deconvolution = TimeRegularizedDeconvolution(
+        dataset=simulated_dataset, **params["deconvolution_params"]
+    )
+
+    simulated_deconvolution.fit_model(**params["fit_params"])
+
+    error = calculate_prediction_error(
+        sim_res, simulated_deconvolution, n_intervals=100
+    )
+
+    return error
+
+
+def get_default_evaluation_param(device, dtype, dtype_np):
+    default_param = {
+        "simulation_params": {
+            "num_samples": 100,
+        },
+        "deconvolution_dataset_params": {
+            "sc_celltype_col": "Subclustering_reduced",
+            "bulk_time_col": "time",
+            "dtype_np": dtype_np,
+            "dtype": dtype,
+            "device": device,
+            "feature_selection_method": "common",
+        },
+        "deconvolution_params": {
+            "polynomial_degree": 5,
+            "basis_functions": "polynomial",
+            "use_betas": True,
+            "device": device,
+            "dtype": dtype,
+        },
+        "fit_params": {
+            "n_iters": 1000,
+            "verbose": False,
+            "log_frequency": 1000,
+        },
+    }
+
+    return default_param
+
+
+def evaluate_paramset(
+    param_set, sc_anndata, reference_deconvolution, show_progress=True
+):
+    if show_progress:
+        progress_bar = tqdm.tqdm
+    else:
+        progress_bar = lambda x: x
+
+    results = []
+    for evaluation_param in progress_bar(param_set):
+        evaluation_param_copy = copy.deepcopy(evaluation_param)
+        evaluation_param_copy["deconvolution_dataset_params"]["sc_anndata"] = sc_anndata
+        error = evaluate_model(
+            evaluation_param_copy, reference_deconvolution=reference_deconvolution
+        )
+        result = {"param": evaluation_param, "error": error}
+        results.append(result)
+
+    return results
