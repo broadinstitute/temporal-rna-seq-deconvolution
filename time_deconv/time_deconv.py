@@ -886,6 +886,31 @@ def sample_sigmoid_proportions(num_cell_types, num_samples, t_m):
     }
 
 
+def sample_periodic_proportions(num_cell_type, num_samples, t_m):
+    """Get a sample of periodic cell proportions"""
+
+    # y = a sin(b*x+c)
+    a = torch.rand(num_cell_types) * 2 - 1  # (-1,1)
+    b = torch.rand(num_cell_types) * 3
+    c = torhc.rand(num_cell_types) * 2
+
+    cell_pop_cm = torch.zeros(num_cell_types, num_samples)
+    for i in range(num_cell_types):
+        cell_pop_cm[i, :] = torch.Tensor(list(a[i] * sim(b[i] * x + c[i]) for x in t_m))
+
+    cell_pop_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0)
+
+    return {
+        "trajectory_params": {
+            "type": "periodic",
+            "a": a,
+            "b": b,
+            "c": c,
+        },
+        "cell_pop_cm": cell_pop_cm,
+    }
+
+
 def evaluate_model(params: dict, reference_deconvolution: TimeRegularizedDeconvolution):
 
     sim_res = simulate_with_sigmoid_proportions(
