@@ -49,9 +49,14 @@ from time_deconv.stats_helpers import *
 import pandas as pd
 
 
+def sample_periodic_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha=1e4):
+    """Get a sample of periodic cell proportions
 
-def sample_periodic_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha = 1e4):
-    """Get a sample of periodic cell proportions"""
+    :param num_cell_types: number of cell types to simulate
+    :param num_samples: number of samples to simulate
+    :param t_m: time points to simulate results for
+    :param dirichlet_alpha: global diriechlet concentration
+    """
 
     # y = a sin(b*x+c)
     a = torch.rand(num_cell_types) * 2 - 1  # (-1,1)
@@ -60,17 +65,19 @@ def sample_periodic_proportions(num_cell_types, num_samples, t_m, dirichlet_alph
 
     trajectories_cm = torch.zeros(num_cell_types, num_samples)
     for i in range(num_cell_types):
-        trajectories_cm[i, :] = torch.Tensor(list(a[i] * torch.sin(b[i] * x + c[i]) for x in t_m))
+        trajectories_cm[i, :] = torch.Tensor(
+            list(a[i] * torch.sin(b[i] * x + c[i]) for x in t_m)
+        )
 
     trajectories_cm = torch.nn.functional.softmax(trajectories_cm, dim=0)
-    
+
     # For every sample, sample proportions from trajectory
     cell_pop_cm = torch.zeros(num_cell_types, num_samples)
     for j in range(num_samples):
-        cell_pop_cm[:,j] = (
-            torch.distributions.dirichlet.Dirichlet(trajectories_cm[:,j] * dirichlet_alpha).sample()
-        )
-    
+        cell_pop_cm[:, j] = torch.distributions.dirichlet.Dirichlet(
+            trajectories_cm[:, j] * dirichlet_alpha
+        ).sample()
+
     # Normalize cell_pop_cm -- Not really needed
     cell_pop_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0)
 
@@ -87,7 +94,7 @@ def sample_periodic_proportions(num_cell_types, num_samples, t_m, dirichlet_alph
 
 
 def sigmoid(x):
-
+    """Return sigmoid value"""
     z = np.exp(-x)
     sig = 1 / (1 + z)
 
@@ -97,7 +104,8 @@ def sigmoid(x):
 def generate_anndata_from_sim(sim_res, reference_deconvolution):
     """Generate AnnData object from the simulation results
 
-    Time is stored in the time dimension
+    :param sim_res: simulation results dictonary
+    :param reference_deconvolution: reference deconvolution object
     """
 
     var_tmp = pd.DataFrame({"gene": reference_deconvolution.dataset.selected_genes})
@@ -110,26 +118,32 @@ def generate_anndata_from_sim(sim_res, reference_deconvolution):
     )
 
 
+def plot_simulated_proportions(
+    sim_res, show_sample_proportions=True, show_trajectories=True
+):
+    """Plot simulated proportion results
 
+    :param sim_res: simulation results objects
+    :param show_sample_proportions: show the generated proportions plot
+    :param show_trajectories: show underlying trajectories plot
+    """
 
+    true_trajectories = sim_res["trajectory_params"]["trajectories_cm"]
 
-def plot_simulated_proportions(sim_res, show_sample_proportions = True, show_trajectories = True):
-    """Plot simulated proportion results"""
-
-    true_trajectories = sim_res['trajectory_params']['trajectories_cm']
-    
-    # Order the time axis 
+    # Order the time axis
     o = torch.argsort(sim_res["t_m"])
-    
-    fig, ax = matplotlib.pyplot.subplots(sum((show_sample_proportions, show_trajectories)))
-    
+
+    fig, ax = matplotlib.pyplot.subplots(
+        sum((show_sample_proportions, show_trajectories))
+    )
+
     if show_trajectories:
         ax[0].plot(sim_res["t_m"][o], true_trajectories[:, o].T)
         ax[0].set_title("True simulated trajectories")
-        
+
         ax[0].set_xlabel("Set time")
         ax[0].set_ylabel("Proportions")
-    
+
     if show_sample_proportions:
         for i in range(sim_res["cell_pop_cm"].shape[0]):
             ax[1].scatter(sim_res["t_m"][o], sim_res["cell_pop_cm"][i, o])
@@ -140,31 +154,46 @@ def plot_simulated_proportions(sim_res, show_sample_proportions = True, show_tra
     return ax
 
 
-
 def simulate_data(
     reference_deconvolution,
     start_time=-5,
     end_time=5,
-    step=1,
     num_samples=100,
     lib_size_mean=1e6,
     lib_size_std=2e5,
     use_betas=False,
-    dirichlet_alpha = 1000,
-    trajectory_type = 'sigmoid'
+    dirichlet_alpha=1000,
+    trajectory_type="sigmoid",
 ):
-    """Simulate bulk data with compositional changes"""
-    
+    """Simulate bulk data with compositional changes
+
+    :param reference_deconvolution: deconvolution object to be used as reference to get single-cell profiles and coefs
+    :param start_time: time start
+    :param end_time: time end
+    :param num_samples: number of samples to simulate
+    :param lib_size_mean: mean library size
+    :param lib_size_std: library size standard deviation
+    :param use_betas: use beta values from the reference model
+    :param dirichlet_alpha: global dirichlet alpha coefficient
+    :param trajectory_time: type of trajectory to generate sigmoid or periodic
+
+    :return: dictionary of simulated values and underlying coefficients
+    """
+
     # Number of celltypes are same as in main deconvolution
     num_cell_types = reference_deconvolution.w_hat_gc.shape[1]
-    
+
     # Sample the times
     t_m = torch.rand((num_samples,)) * (end_time - start_time) + start_time
 
-    if trajectory_type == 'sigmoid':
-        proportions_sample = sample_sigmoid_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha)
-    elif trajectory_type == 'sin':
-        proportions_sample = sample_periodic_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha)
+    if trajectory_type == "sigmoid":
+        proportions_sample = sample_sigmoid_proportions(
+            num_cell_types, num_samples, t_m, dirichlet_alpha
+        )
+    elif trajectory_type == "sin":
+        proportions_sample = sample_periodic_proportions(
+            num_cell_types, num_samples, t_m, dirichlet_alpha
+        )
     else:
         raise Exception("Unkown Trajectory Type")
 
@@ -213,8 +242,16 @@ def simulate_data(
     }
 
 
+def sample_sigmoid_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha=1e4):
+    """Generate a sample of sigmoid proportions
 
-def sample_sigmoid_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha = 1e4):
+    :param num_cell_types: number of cell types to simulate
+    :param num_samples: number of samples
+    :param t_m: torch tensor of times
+    :param dirichlet_alpha: multiplier for normalized dirichlet coefficients
+
+    :return: Dictionary of coefficients
+    """
     # generate the celltype proportions
     effect_size = torch.rand(num_cell_types)  # 0,1
     shift = torch.rand(num_cell_types) * 2 - 1
@@ -224,22 +261,23 @@ def sample_sigmoid_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha
     trajectories_cm = torch.zeros(num_cell_types, num_samples)
     for i in range(num_cell_types):
         trajectories_cm[i, :] = (
-            torch.Tensor(list(sigmoid(magnitude[i] * x + shift[i]) for x in t_m)) * effect_size[i]
+            torch.Tensor(list(sigmoid(magnitude[i] * x + shift[i]) for x in t_m))
+            * effect_size[i]
         )
-        
+
     # Normalize trajectories_cm
     trajectories_cm = torch.nn.functional.softmax(trajectories_cm, dim=0)
-    
+
     # For every sample, sample proportions from trajectory
     cell_pop_cm = torch.zeros(num_cell_types, num_samples)
     for j in range(num_samples):
-        cell_pop_cm[:,j] = (
-            torch.distributions.dirichlet.Dirichlet(trajectories_cm[:,j] * dirichlet_alpha).sample()
-        )
-    
+        cell_pop_cm[:, j] = torch.distributions.dirichlet.Dirichlet(
+            trajectories_cm[:, j] * dirichlet_alpha
+        ).sample()
+
     # Normalize cell_pop_cm -- Not really needed
-    #cell_pop_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0)
-    
+    # cell_pop_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0)
+
     return {
         "trajectory_params": {
             "type": "sigmoid",
@@ -252,8 +290,13 @@ def sample_sigmoid_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha
     }
 
 
-
 def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=10):
+    """Calculate the prediction error of a deconvolution on simulated results
+
+    :param sim_res: results of a simulation
+    :param pseudo_time_reg_deconv_sim: the deconvolution object to evaluate
+    :n_intervals: number of intervals over which to evaluate the results
+    """
 
     ## Get the ground truth
     if sim_res["trajectory_params"]["type"] == "sigmoid":

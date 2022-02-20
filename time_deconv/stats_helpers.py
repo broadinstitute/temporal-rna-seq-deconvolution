@@ -1,6 +1,7 @@
 import functools
 import pyro.distributions as dist
 
+
 @functools.lru_cache(maxsize=20)
 def legendre_coefficient_mat(k_max, dtype, epsilon=1e-8):
     """
