@@ -59,9 +59,9 @@ def sample_periodic_proportions(num_cell_types, num_samples, t_m, dirichlet_alph
     """
 
     # y = a sin(b*x+c)
-    a = torch.rand(num_cell_types) * 2 - 1  # (-1,1)
-    b = torch.rand(num_cell_types) * 3
-    c = torch.rand(num_cell_types) * 2
+    a = torch.rand(num_cell_types) * 10 - 5  # (-5,5)
+    b = torch.rand(num_cell_types) * 0.75
+    c = torch.rand(num_cell_types) * 5
 
     trajectories_cm = torch.zeros(num_cell_types, num_samples)
     for i in range(num_cell_types):
@@ -190,7 +190,7 @@ def simulate_data(
         proportions_sample = sample_sigmoid_proportions(
             num_cell_types, num_samples, t_m, dirichlet_alpha
         )
-    elif trajectory_type == "sin":
+    elif trajectory_type == "periodic":
         proportions_sample = sample_periodic_proportions(
             num_cell_types, num_samples, t_m, dirichlet_alpha
         )
