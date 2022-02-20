@@ -802,7 +802,7 @@ def sample_sigmoid_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha
         )
     
     # Normalize cell_pop_cm -- Not really needed
-    cell_pop_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0)
+    #cell_pop_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0)
     
     return {
         "trajectory_params": {
@@ -816,7 +816,7 @@ def sample_sigmoid_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha
     }
 
 
-def simulate_with_sigmoid_proportions(
+def simulate_data(
     reference_deconvolution,
     start_time=-5,
     end_time=5,
@@ -826,24 +826,22 @@ def simulate_with_sigmoid_proportions(
     lib_size_std=2e5,
     use_betas=False,
     dirichlet_alpha = 1000,
+    trajectory_type = 'sigmoid'
 ):
     """Simulate bulk data with compositional changes"""
-
-    print('hi')
     
-    # Discrete equally spaced timepoints to sample from
-    #xs = torch.arange(start_time, end_time, step)
-
     # Number of celltypes are same as in main deconvolution
     num_cell_types = reference_deconvolution.w_hat_gc.shape[1]
-
-    # Sample the times for the samples
-    #t_m = xs[torch.randint(len(xs), (num_samples,))]
     
     # Sample the times
     t_m = torch.rand((num_samples,)) * (end_time - start_time) + start_time
 
-    proportions_sample = sample_sigmoid_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha)
+    if trajectory_type == 'sigmoid':
+        proportions_sample = sample_sigmoid_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha)
+    elif trajectory_type == 'sin':
+        proportions_sample = sample_periodic_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha)
+    else:
+        raise Exception("Unkown Trajectory Type")
 
     cell_pop_cm = proportions_sample["cell_pop_cm"]
 
@@ -940,18 +938,28 @@ def sigmoid(x):
     return sig
 
 
-def sample_periodic_proportions(num_cell_type, num_samples, t_m):
+def sample_periodic_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha = 1e4):
     """Get a sample of periodic cell proportions"""
 
     # y = a sin(b*x+c)
     a = torch.rand(num_cell_types) * 2 - 1  # (-1,1)
     b = torch.rand(num_cell_types) * 3
-    c = torhc.rand(num_cell_types) * 2
+    c = torch.rand(num_cell_types) * 2
 
-    cell_pop_cm = torch.zeros(num_cell_types, num_samples)
+    trajectories_cm = torch.zeros(num_cell_types, num_samples)
     for i in range(num_cell_types):
-        cell_pop_cm[i, :] = torch.Tensor(list(a[i] * sim(b[i] * x + c[i]) for x in t_m))
+        trajectories_cm[i, :] = torch.Tensor(list(a[i] * torch.sin(b[i] * x + c[i]) for x in t_m))
 
+    trajectories_cm = torch.nn.functional.softmax(trajectories_cm, dim=0)
+    
+    # For every sample, sample proportions from trajectory
+    cell_pop_cm = torch.zeros(num_cell_types, num_samples)
+    for j in range(num_samples):
+        cell_pop_cm[:,j] = (
+            torch.distributions.dirichlet.Dirichlet(trajectories_cm[:,j] * dirichlet_alpha).sample()
+        )
+    
+    # Normalize cell_pop_cm -- Not really needed
     cell_pop_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0)
 
     return {
@@ -960,6 +968,7 @@ def sample_periodic_proportions(num_cell_type, num_samples, t_m):
             "a": a,
             "b": b,
             "c": c,
+            "trajectories_cm": trajectories_cm,
         },
         "cell_pop_cm": cell_pop_cm,
     }
