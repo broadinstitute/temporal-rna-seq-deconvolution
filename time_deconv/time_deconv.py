@@ -456,22 +456,27 @@ class TimeRegularizedDeconvolution:
         # The normalized underlying trajectories, serve as Dirichlet params
         trajectory_mc = torch.nn.functional.softmax(unnorm_cell_pop_base_c[None, :] + deformation_mc, dim=-1)
         
+
+        
         broken_code = False
         
         if not broken_code:
             # This works
             cell_pop_mc = trajectory_mc
-        else:
+        else: 
             # TODO: Make this a learnable parameter
             dirichlet_alpha = 1e4
             # These are the per-sample cell type proportions
             # Their position on the simplex is defined by the overall trajectory
+            dirichlet_dist = dist.Dirichlet(concentration = trajectory_mc * dirichlet_alpha).to_event(0)
+            print(f'event_shape: {dirichlet_dist.event_shape}, num_cell_types: {self.dataset.num_cell_types}')
+            assert dirichlet_dist.event_shape == (self.dataset.num_cell_types, )
+            
             cell_pop_mc = pyro.sample(
                 "cell_pop_mc",
-                dist.Dirichlet(
-                    concentration = trajectory_mc.T * dirichlet_alpha).to_event(2),
+                dirichlet_dist,
             )
-
+        
         assert cell_pop_mc.shape == (self.dataset.num_samples ,self.dataset.num_cell_types)
 
         # calculate mean gene expression
