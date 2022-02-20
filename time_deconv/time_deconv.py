@@ -208,6 +208,10 @@ class DeconvolutionDataset:
     @cachedproperty
     def num_cell_types(self) -> int:
         return len(self.cell_type_str_list)
+    
+    @cachedproperty
+    def num_samples(self) -> int:
+        return self.bulk_anndata.X.shape[0]
 
     @cachedproperty
     def w_hat_gc(self) -> np.ndarray:
@@ -231,10 +235,6 @@ class DeconvolutionDataset:
         return torch.tensor(self.dpi_time_m, device=self.device, dtype=self.dtype)
 
 
-#     def num_bulk_samples() -> int:
-#         return self.bulk_anndata.X
-
-
 def generate_batch(
     dataset: DeconvolutionDataset, device: torch.device, dtype: torch.dtype
 ):
@@ -244,13 +244,6 @@ def generate_batch(
         "t_m": torch.tensor(dataset.dpi_time_m, device=device, dtype=dtype),
         # "t_m": dataset.dpi_time_m.clone().detach().to(device).type(dtype)
     }
-
-
-#     return {
-#         "x_mg": torch.tensor(dataset.bulk_raw_gex_mg, device=device, dtype=dtype),
-#         "t_m": torch.tensor(dataset.dpi_time_m, device=device, dtype=dtype),
-#     }
-
 
 class TimeRegularizedDeconvolution:
     def __init__(
@@ -276,6 +269,10 @@ class TimeRegularizedDeconvolution:
         self.tau_prior_scale = 1.0
         self.log_phi_prior_loc = -5.0
         self.log_phi_prior_scale = 1.0
+        
+        #####################################################
+        ## Prior
+        #####################################################
 
         self.unnorm_cell_pop_base_prior_loc_c = np.zeros((self.dataset.num_cell_types,))
         self.unnorm_cell_pop_base_prior_scale_c = np.ones(
@@ -289,7 +286,15 @@ class TimeRegularizedDeconvolution:
         self.unnorm_cell_pop_deform_prior_scale_ck = np.ones(
             (self.dataset.num_cell_types, self.polynomial_degree)
         )
+        
+        # Per sample celltype proportions
+        self.cell_pop_prior_loc_cm = np.ones(
+            (self.dataset.num_cell_types, self.dataset.num_samples)
+        )
 
+        #####################################################
+        ## Posterior
+        #####################################################
         self.init_posterior_global_scale_factor = 0.05
 
         self.log_beta_posterior_scale = 1.0 * self.init_posterior_global_scale_factor
@@ -312,6 +317,11 @@ class TimeRegularizedDeconvolution:
         self.unnorm_cell_pop_deform_posterior_scale_ck = (
             self.init_posterior_global_scale_factor
             * np.ones((self.dataset.num_cell_types, self.polynomial_degree))
+        )
+        
+        self.cell_pop_posterior_loc_mc = (
+            self.init_posterior_global_scale_factor
+            * np.ones((self.dataset.num_samples, self.dataset.num_cell_types))
         )
 
         # cache useful tensors
@@ -342,6 +352,7 @@ class TimeRegularizedDeconvolution:
                 ),
             ).to_event(1),
         )
+        assert log_phi_g.shape == (self.dataset.num_genes,)
 
         # sample log_beta_g
         log_beta_g = pyro.sample(
@@ -356,6 +367,7 @@ class TimeRegularizedDeconvolution:
                 ),
             ).to_event(1),
         )
+        assert log_beta_g.shape == (self.dataset.num_genes,)
 
         # sample unnorm_cell_pop_base_c
         unnorm_cell_pop_base_c = pyro.sample(
@@ -373,6 +385,7 @@ class TimeRegularizedDeconvolution:
                 ),
             ).to_event(1),
         )
+        assert unnorm_cell_pop_base_c.shape == (self.dataset.num_cell_types,)
 
         # Deformation scale is a learnable parameter now
         unnorm_cell_pop_deform_prior_scale_ck = pyro.param(
@@ -384,6 +397,7 @@ class TimeRegularizedDeconvolution:
             ),
             constraint=constraints.positive,
         )
+        assert unnorm_cell_pop_deform_prior_scale_ck.shape == (self.dataset.num_cell_types, self.polynomial_degree)
 
         unnorm_cell_pop_deform_ck = pyro.sample(
             "unnorm_cell_pop_deform_ck",
@@ -396,6 +410,7 @@ class TimeRegularizedDeconvolution:
                 scale=unnorm_cell_pop_deform_prior_scale_ck,
             ).to_event(2),
         )
+        assert unnorm_cell_pop_deform_ck.shape == (self.dataset.num_cell_types, self.polynomial_degree)
 
         # calculate useful derived variables
         beta_g = log_beta_g.exp()
@@ -438,12 +453,26 @@ class TimeRegularizedDeconvolution:
                 unnorm_cell_pop_deform_ck, intermediate_legenre_vals_km
             ).transpose(-1, -2)
 
-        # TODO: add a sample specific proportion sampling from the corresponding time point
+        # The normalized underlying trajectories, serve as Dirichlet params
+        trajectory_mc = torch.nn.functional.softmax(unnorm_cell_pop_base_c[None, :] + deformation_mc, dim=-1)
+        
+        broken_code = False
+        
+        if not broken_code:
+            # This works
+            cell_pop_mc = trajectory_mc
+        else:
+            # TODO: Make this a learnable parameter
+            dirichlet_alpha = 1e4
+            # These are the per-sample cell type proportions
+            # Their position on the simplex is defined by the overall trajectory
+            cell_pop_mc = pyro.sample(
+                "cell_pop_mc",
+                dist.Dirichlet(
+                    concentration = trajectory_mc.T * dirichlet_alpha).to_event(2),
+            )
 
-        cell_pop_unnorm_mc = unnorm_cell_pop_base_c[None, :] + deformation_mc
-
-        # Normalize the cell proportions
-        cell_pop_mc = torch.nn.functional.softmax(cell_pop_unnorm_mc, dim=-1)
+        assert cell_pop_mc.shape == (self.dataset.num_samples ,self.dataset.num_cell_types)
 
         # calculate mean gene expression
         mu_mg = x_mg.sum(-1)[:, None] * torch.matmul(
@@ -499,6 +528,16 @@ class TimeRegularizedDeconvolution:
                 dtype=self.dtype,
             ),
         )
+        
+        # Cell composition
+        cell_pop_posterior_loc_mc = pyro.param(
+            "cell_pop_posterior_loc_mc",
+            torch.tensor(
+                self.cell_pop_posterior_loc_mc,
+                device=self.device,
+                dtype=self.dtype,
+            )
+        )
 
         # posterior sample statements
         log_phi_g = pyro.sample(
@@ -518,6 +557,11 @@ class TimeRegularizedDeconvolution:
             "unnorm_cell_pop_deform_ck",
             dist.Delta(v=unnorm_cell_pop_deform_posterior_loc_ck).to_event(2),
         )
+        
+        cell_pop_mc = pyro.sample(
+            "cell_pop_mc",
+            dist.Delta(v=cell_pop_posterior_loc_mc).to_event(2),
+       )
 
     def fit_model(
         self, n_iters=3000, log_frequency=100, verbose=True, clear_param_store=True
