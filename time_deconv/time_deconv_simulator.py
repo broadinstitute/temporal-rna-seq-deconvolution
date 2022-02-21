@@ -157,6 +157,10 @@ def simulate_data(
         proportions_sample = sample_periodic_proportions(
             num_cell_types, num_samples, t_m, dirichlet_alpha
         )
+    elif trajectory_type == "linear":
+        proportions_sample = sample_linear_proportions(
+            num_cell_types, num_samples, t_m, dirichlet_alpha
+        )
     else:
         raise Exception("Unkown Trajectory Type")
 
@@ -203,6 +207,51 @@ def simulate_data(
         "x_ng": x_ng,
         "trajectory_params": proportions_sample["trajectory_params"],
     }
+
+def sample_linear_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha=1e4):
+    """Generate a sample of linear proportions
+    
+    :param num_cell_types: number of cell types to simulate
+    :param num_samples: number of samples
+    :param t_m: torch tensor of times
+    :param dirichlet_alpha: multiplier for normalized dirichlet coefficients
+
+    :return: Dictionary of coefficients
+    """
+    
+    # y = ax+b
+    a = torch.rand(num_cell_types) * 10
+    b = torch.rand(num_cell_types) * 10 - 5
+    
+    trajectories_cm = torch.zeros(num_cell_types, num_samples)
+    for i in range(num_cell_types):
+        trajectories_cm[i, :] = (
+            torch.Tensor(list(a[i] * x + b[i] for x in t_m))
+        )
+    
+    # Normalize trajectories_cm
+    trajectories_cm = torch.nn.functional.softmax(trajectories_cm, dim=0)
+
+    # For every sample, sample proportions from trajectory
+    cell_pop_cm = torch.zeros(num_cell_types, num_samples)
+    for j in range(num_samples):
+        cell_pop_cm[:, j] = torch.distributions.dirichlet.Dirichlet(
+            trajectories_cm[:, j] * dirichlet_alpha
+        ).sample()
+
+    # Normalize cell_pop_cm -- Not really needed
+    # cell_pop_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0)
+
+    return {
+        "trajectory_params": {
+            "type": "linear",
+            "a": a,
+            "b": b,
+            "trajectories_cm": trajectories_cm,
+        },
+        "cell_pop_cm": cell_pop_cm,
+    }
+    
 
 
 def sample_sigmoid_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha=1e4):

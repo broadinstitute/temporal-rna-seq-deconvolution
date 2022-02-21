@@ -467,16 +467,16 @@ class TimeRegularizedDeconvolution:
             ),
         )
 
-        # Cell composition
-        cell_pop_posterior_loc_mc = pyro.param(
-            "cell_pop_posterior_loc_mc",
-            torch.tensor(
-                self.cell_pop_posterior_loc_mc,
-                device=self.device,
-                dtype=self.dtype,
-            ),
-            constraint = constraints.positive
-        )
+#         # Cell composition
+#         cell_pop_posterior_loc_mc = pyro.param(
+#             "cell_pop_posterior_loc_mc",
+#             torch.tensor(
+#                 self.cell_pop_posterior_loc_mc,
+#                 device=self.device,
+#                 dtype=self.dtype,
+#             ),
+#             constraint = constraints.positive
+#         )
 
         # posterior sample statements
         log_phi_g = pyro.sample(
@@ -498,12 +498,12 @@ class TimeRegularizedDeconvolution:
             
         )
 
-        # These become NaNs
-        #print(cell_pop_posterior_loc_mc)
-        cell_pop_mc = pyro.sample(
-            "cell_pop_mc",
-            dist.Dirichlet(concentration = cell_pop_posterior_loc_mc).to_event(1),
-        )
+#         # These become NaNs
+#         #print(cell_pop_posterior_loc_mc)
+#         cell_pop_mc = pyro.sample(
+#             "cell_pop_mc",
+#             dist.Dirichlet(concentration = cell_pop_posterior_loc_mc).to_event(1),
+#         )
 
     def fit_model(
         self, n_iters=3000, log_frequency=100, verbose=True, clear_param_store=True
