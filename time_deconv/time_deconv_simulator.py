@@ -221,7 +221,7 @@ def sample_linear_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha=
     
     # y = ax+b
     a = torch.rand(num_cell_types) * 10
-    b = torch.rand(num_cell_types) * 10 - 5
+    b = torch.rand(num_cell_types) * 20 - 10
     
     trajectories_cm = torch.zeros(num_cell_types, num_samples)
     for i in range(num_cell_types):
