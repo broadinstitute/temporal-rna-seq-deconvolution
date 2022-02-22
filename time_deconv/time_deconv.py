@@ -207,13 +207,14 @@ class TimeRegularizedDeconvolution:
         )
 
         # Per sample celltype proportions
-        self.cell_pop_prior_loc_cm = np.ones(
-            (self.dataset.num_cell_types, self.dataset.num_samples) 
-        ) / self.dataset.num_cell_types
-        
+        self.cell_pop_prior_loc_cm = (
+            np.ones((self.dataset.num_cell_types, self.dataset.num_samples))
+            / self.dataset.num_cell_types
+        )
+
         # Dirichlet_alpha prior
         self.dirichlet_alpha_prior = np.ones((1,)) * 1e5
- 
+
         #####################################################
         ## Posterior
         #####################################################
@@ -243,10 +244,13 @@ class TimeRegularizedDeconvolution:
 
         self.cell_pop_posterior_loc_mc = (
             self.init_posterior_global_scale_factor
-            * np.ones((self.dataset.num_samples, self.dataset.num_cell_types)) / self.dataset.num_cell_types
+            * np.ones((self.dataset.num_samples, self.dataset.num_cell_types))
+            / self.dataset.num_cell_types
         )
-        
-        self.dirichlet_alpha_posterior = self.init_posterior_global_scale_factor * np.ones((1,))
+
+        self.dirichlet_alpha_posterior = (
+            self.init_posterior_global_scale_factor * np.ones((1,))
+        )
 
         # cache useful tensors
         self.w_hat_gc = torch.tensor(self.dataset.w_hat_gc, device=device, dtype=dtype)
@@ -342,7 +346,6 @@ class TimeRegularizedDeconvolution:
             self.polynomial_degree,
         )
 
-        
         dirichlet_alpha = pyro.param(
             "dirichlet_alpha",
             torch.tensor(
@@ -353,8 +356,7 @@ class TimeRegularizedDeconvolution:
             constraint=constraints.positive,
         )
         assert dirichlet_alpha.shape == (1,)
-        
-        
+
         # calculate useful derived variables
         beta_g = log_beta_g.exp()
         phi_g = log_phi_g.exp()
@@ -403,16 +405,14 @@ class TimeRegularizedDeconvolution:
 
         per_sample_draw = True
         if per_sample_draw:
-            #dirichlet_alpha = torch.tensor([1e4], device=self.device)
-            dirichlet_dist = dist.Dirichlet(concentration = trajectory_mc * dirichlet_alpha).to_event(1)
-            
-            cell_pop_mc = pyro.sample(
-                "cell_pop_mc",
-                dirichlet_dist 
-            )
+            # dirichlet_alpha = torch.tensor([1e4], device=self.device)
+            dirichlet_dist = dist.Dirichlet(
+                concentration=trajectory_mc * dirichlet_alpha
+            ).to_event(1)
+
+            cell_pop_mc = pyro.sample("cell_pop_mc", dirichlet_dist)
         else:
             cell_pop_mc = trajectory_mc
-            
 
         assert cell_pop_mc.shape == (
             self.dataset.num_samples,
@@ -482,7 +482,7 @@ class TimeRegularizedDeconvolution:
                 device=self.device,
                 dtype=self.dtype,
             ),
-            constraint = constraints.simplex
+            constraint=constraints.simplex,
         )
 
         # posterior sample statements
@@ -506,16 +506,16 @@ class TimeRegularizedDeconvolution:
 
         cell_pop_mc = pyro.sample(
             "cell_pop_mc",
-            dist.Delta(v = cell_pop_posterior_loc_mc).to_event(2),
+            dist.Delta(v=cell_pop_posterior_loc_mc).to_event(2),
         )
-        
-        
-            
-            
 
     def fit_model(
-        self, n_iters=3000, log_frequency=100, verbose=True, clear_param_store=True,
-        keep_param_store_history = True,
+        self,
+        n_iters=3000,
+        log_frequency=100,
+        verbose=True,
+        clear_param_store=True,
+        keep_param_store_history=True,
     ):
         if clear_param_store:
             pyro.clear_param_store()
@@ -532,14 +532,19 @@ class TimeRegularizedDeconvolution:
 
         for i_iter in range(n_iters):
             batch_dict = generate_batch(self.dataset, self.device, self.dtype)
-            
+
             loss = svi.step(**batch_dict)
             self.loss_hist.append(loss)
-            
+
             if keep_param_store_history:
                 param_store = pyro.get_param_store()
-                self.param_store_hist.append({k: v.detach().float().cpu().clone() for k,v in param_store.items()})
-                
+                self.param_store_hist.append(
+                    {
+                        k: v.detach().float().cpu().clone()
+                        for k, v in param_store.items()
+                    }
+                )
+
             if verbose:
                 if i_iter % log_frequency == 0:
                     print(f"[iteration: {i_iter}]   loss: {self.loss_hist[-1]:.2f}")

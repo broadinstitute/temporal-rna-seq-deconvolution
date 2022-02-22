@@ -178,7 +178,7 @@ def sample_trajectories(type, num_cell_types):
 ######################################################
 
 
-def sample_linear_trajectories(num_cell_types,seed=2022):
+def sample_linear_trajectories(num_cell_types, seed=2022):
     torch.manual_seed(seed)
     # y = ax+b
     a = torch.rand(num_cell_types) * 10
@@ -440,11 +440,13 @@ def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=
         n_intervals=n_intervals
     )
     ret_vals = pseudo_time_reg_deconv_sim.calculated_trajectories
-    
+
     predicted_composition_cm = ret_vals["norm_comp_t"]
-    
+
     # Calculate L1 and L2 losses
-    L1_error = (ground_truth_proportions_cm - predicted_composition_cm).abs().sum([0, 1])
+    L1_error = (
+        (ground_truth_proportions_cm - predicted_composition_cm).abs().sum([0, 1])
+    )
     L1_error_norm = L1_error / n_intervals
     L2_error = (
         (ground_truth_proportions_cm - predicted_composition_cm)
@@ -455,13 +457,21 @@ def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=
     L2_error_norm = L2_error / n_intervals
 
     # Calculate L1 and L2 losses on the trajectory shapes
-    
+
     # Normalize by cell type summing to 1
-    ground_truth_proportions_norm_cm = ground_truth_proportions_cm / ground_truth_proportions_cm.sum(-2)
-    predicted_composition_norm_cm = predicted_composition_cm / predicted_composition_cm.sum(-2)
-    
-    shape_L1_error = (ground_truth_proportions_norm_cm - predicted_composition_norm_cm).abs().sum([0, 1])
-    
+    ground_truth_proportions_norm_cm = (
+        ground_truth_proportions_cm / ground_truth_proportions_cm.sum(-2)
+    )
+    predicted_composition_norm_cm = (
+        predicted_composition_cm / predicted_composition_cm.sum(-2)
+    )
+
+    shape_L1_error = (
+        (ground_truth_proportions_norm_cm - predicted_composition_norm_cm)
+        .abs()
+        .sum([0, 1])
+    )
+
     return {
         "L1_error": L1_error,
         "L1_error_norm": L1_error_norm,
