@@ -178,7 +178,8 @@ def sample_trajectories(type, num_cell_types):
 ######################################################
 
 
-def sample_linear_trajectories(num_cell_types):
+def sample_linear_trajectories(num_cell_types,seed=2022):
+    torch.manual_seed(seed)
     # y = ax+b
     a = torch.rand(num_cell_types) * 10
     b = torch.rand(num_cell_types) * 20 - 10
@@ -238,7 +239,8 @@ def sample_linear_proportions(
 ######################################################
 
 
-def sample_periodic_trajectories(num_cell_types):
+def sample_periodic_trajectories(num_cell_types, seed=2022):
+    torch.manual_seed(seed)
     # y = a sin(b*x+c)
     a = torch.rand(num_cell_types) * 10 - 5  # (-5,5)
     b = torch.rand(num_cell_types) * 0.75
@@ -309,7 +311,8 @@ def sigmoid(x):
     return sig
 
 
-def sample_sigmoid_trajectories(num_cell_types):
+def sample_sigmoid_trajectories(num_cell_types, seed=2022):
+    torch.manual_seed(seed)
     # generate the celltype proportions
     effect_size = torch.rand(num_cell_types)  # 0,1
     shift = torch.rand(num_cell_types) * 2 - 1
@@ -376,7 +379,7 @@ def sample_sigmoid_proportions(
 ######################################################
 
 
-def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=10):
+def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=1000):
     """Calculate the prediction error of a deconvolution on simulated results
 
     :param sim_res: results of a simulation
@@ -437,21 +440,32 @@ def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=
         n_intervals=n_intervals
     )
     ret_vals = pseudo_time_reg_deconv_sim.calculated_trajectories
-
-    L1_error = (ground_truth_proportions_cm - ret_vals["norm_comp_t"]).abs().sum([0, 1])
+    
+    predicted_composition_cm = ret_vals["norm_comp_t"]
+    
+    # Calculate L1 and L2 losses
+    L1_error = (ground_truth_proportions_cm - predicted_composition_cm).abs().sum([0, 1])
     L1_error_norm = L1_error / n_intervals
-
     L2_error = (
-        (ground_truth_proportions_cm - ret_vals["norm_comp_t"])
+        (ground_truth_proportions_cm - predicted_composition_cm)
         .pow(2)
         .sum([0, 1])
         .sqrt()
     )
     L2_error_norm = L2_error / n_intervals
 
+    # Calculate L1 and L2 losses on the trajectory shapes
+    
+    # Normalize by cell type summing to 1
+    ground_truth_proportions_norm_cm = ground_truth_proportions_cm / ground_truth_proportions_cm.sum(-2)
+    predicted_composition_norm_cm = predicted_composition_cm / predicted_composition_cm.sum(-2)
+    
+    shape_L1_error = (ground_truth_proportions_norm_cm - predicted_composition_norm_cm).abs().sum([0, 1])
+    
     return {
         "L1_error": L1_error,
         "L1_error_norm": L1_error_norm,
         "L2_error": L2_error,
         "L2_error_norm": L2_error_norm,
+        "shape_L1_error": shape_L1_error,
     }
