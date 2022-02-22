@@ -12,58 +12,6 @@ from time_deconv.stats_helpers import *
 import pandas as pd
 
 
-def sample_periodic_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha=1e4):
-    """Get a sample of periodic cell proportions
-
-    :param num_cell_types: number of cell types to simulate
-    :param num_samples: number of samples to simulate
-    :param t_m: time points to simulate results for
-    :param dirichlet_alpha: global diriechlet concentration
-    """
-
-    # y = a sin(b*x+c)
-    a = torch.rand(num_cell_types) * 10 - 5  # (-5,5)
-    b = torch.rand(num_cell_types) * 0.75
-    c = torch.rand(num_cell_types) * 5
-
-    trajectories_cm = torch.zeros(num_cell_types, num_samples)
-    for i in range(num_cell_types):
-        trajectories_cm[i, :] = torch.Tensor(
-            list(a[i] * torch.sin(b[i] * x + c[i]) for x in t_m)
-        )
-
-    trajectories_cm = torch.nn.functional.softmax(trajectories_cm, dim=0)
-
-    # For every sample, sample proportions from trajectory
-    cell_pop_cm = torch.zeros(num_cell_types, num_samples)
-    for j in range(num_samples):
-        cell_pop_cm[:, j] = torch.distributions.dirichlet.Dirichlet(
-            trajectories_cm[:, j] * dirichlet_alpha
-        ).sample()
-
-    # Normalize cell_pop_cm -- Not really needed
-    cell_pop_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0)
-
-    return {
-        "trajectory_params": {
-            "type": "periodic",
-            "a": a,
-            "b": b,
-            "c": c,
-            "trajectories_cm": trajectories_cm,
-        },
-        "cell_pop_cm": cell_pop_cm,
-    }
-
-
-def sigmoid(x):
-    """Return sigmoid value"""
-    z = np.exp(-x)
-    sig = 1 / (1 + z)
-
-    return sig
-
-
 def generate_anndata_from_sim(sim_res, reference_deconvolution):
     """Generate AnnData object from the simulation results
 
@@ -127,6 +75,7 @@ def simulate_data(
     use_betas=False,
     dirichlet_alpha=1000,
     trajectory_type="sigmoid",
+    trajectory_coef=None,
 ):
     """Simulate bulk data with compositional changes
 
@@ -139,6 +88,7 @@ def simulate_data(
     :param use_betas: use beta values from the reference model
     :param dirichlet_alpha: global dirichlet alpha coefficient
     :param trajectory_time: type of trajectory to generate sigmoid or periodic
+    :
 
     :return: dictionary of simulated values and underlying coefficients
     """
@@ -151,15 +101,15 @@ def simulate_data(
 
     if trajectory_type == "sigmoid":
         proportions_sample = sample_sigmoid_proportions(
-            num_cell_types, num_samples, t_m, dirichlet_alpha
+            num_cell_types, num_samples, t_m, dirichlet_alpha, trajectory_coef
         )
     elif trajectory_type == "periodic":
         proportions_sample = sample_periodic_proportions(
-            num_cell_types, num_samples, t_m, dirichlet_alpha
+            num_cell_types, num_samples, t_m, dirichlet_alpha, trajectory_coef
         )
     elif trajectory_type == "linear":
         proportions_sample = sample_linear_proportions(
-            num_cell_types, num_samples, t_m, dirichlet_alpha
+            num_cell_types, num_samples, t_m, dirichlet_alpha, trajectory_coef
         )
     else:
         raise Exception("Unkown Trajectory Type")
@@ -208,9 +158,39 @@ def simulate_data(
         "trajectory_params": proportions_sample["trajectory_params"],
     }
 
-def sample_linear_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha=1e4):
+
+def sample_trajectories(type, num_cell_types):
+    """Generate a random trajectory
+
+    :param type: trajectory type (linear, sigmoid, periodical)
+    :param num_cell_types: number of cell types in the trajectory
+    """
+    if type == "linear":
+        return sample_linear_trajectories(num_cell_types)
+    elif type == "periodic":
+        return sample_periodic_trajectories(num_cell_types)
+    elif type == "sigmoid":
+        return sample_sigmoid_trajectories(num_cell_types)
+
+
+######################################################
+## Linear
+######################################################
+
+
+def sample_linear_trajectories(num_cell_types):
+    # y = ax+b
+    a = torch.rand(num_cell_types) * 10
+    b = torch.rand(num_cell_types) * 20 - 10
+
+    return {"a": a, "b": b}
+
+
+def sample_linear_proportions(
+    num_cell_types, num_samples, t_m, dirichlet_alpha=1e4, trajectory_coef=None
+):
     """Generate a sample of linear proportions
-    
+
     :param num_cell_types: number of cell types to simulate
     :param num_samples: number of samples
     :param t_m: torch tensor of times
@@ -218,17 +198,17 @@ def sample_linear_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha=
 
     :return: Dictionary of coefficients
     """
-    
-    # y = ax+b
-    a = torch.rand(num_cell_types) * 10
-    b = torch.rand(num_cell_types) * 20 - 10
-    
+
+    if trajectory_coef is None:
+        trajectory_coef = sample_linear_trajectories(num_cell_types)
+
+    a = trajectory_coef["a"]
+    b = trajectory_coef["b"]
+
     trajectories_cm = torch.zeros(num_cell_types, num_samples)
     for i in range(num_cell_types):
-        trajectories_cm[i, :] = (
-            torch.Tensor(list(a[i] * x + b[i] for x in t_m))
-        )
-    
+        trajectories_cm[i, :] = torch.Tensor(list(a[i] * x + b[i] for x in t_m))
+
     # Normalize trajectories_cm
     trajectories_cm = torch.nn.functional.softmax(trajectories_cm, dim=0)
 
@@ -251,10 +231,96 @@ def sample_linear_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha=
         },
         "cell_pop_cm": cell_pop_cm,
     }
-    
 
 
-def sample_sigmoid_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha=1e4):
+######################################################
+## Periodic
+######################################################
+
+
+def sample_periodic_trajectories(num_cell_types):
+    # y = a sin(b*x+c)
+    a = torch.rand(num_cell_types) * 10 - 5  # (-5,5)
+    b = torch.rand(num_cell_types) * 0.75
+    c = torch.rand(num_cell_types) * 5
+
+    return {"a": a, "b": b, "c": c}
+
+
+def sample_periodic_proportions(
+    num_cell_types, num_samples, t_m, dirichlet_alpha=1e4, trajectory_coefficients=None
+):
+    """Get a sample of periodic cell proportions
+
+    :param num_cell_types: number of cell types to simulate
+    :param num_samples: number of samples to simulate
+    :param t_m: time points to simulate results for
+    :param dirichlet_alpha: global diriechlet concentration
+    """
+    if trajectory_coefficients is None:
+        trajectory_coefficients = sample_periodic_trajectories(
+            num_cell_types, num_samples
+        )
+
+    a = trajectory_coefficients["a"]
+    b = trajectory_coefficients["b"]
+    c = trajectory_coefficients["c"]
+
+    trajectories_cm = torch.zeros(num_cell_types, num_samples)
+    for i in range(num_cell_types):
+        trajectories_cm[i, :] = torch.Tensor(
+            list(a[i] * torch.sin(b[i] * x + c[i]) for x in t_m)
+        )
+
+    trajectories_cm = torch.nn.functional.softmax(trajectories_cm, dim=0)
+
+    # For every sample, sample proportions from trajectory
+    cell_pop_cm = torch.zeros(num_cell_types, num_samples)
+    for j in range(num_samples):
+        cell_pop_cm[:, j] = torch.distributions.dirichlet.Dirichlet(
+            trajectories_cm[:, j] * dirichlet_alpha
+        ).sample()
+
+    # Normalize cell_pop_cm -- Not really needed
+    cell_pop_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0)
+
+    return {
+        "trajectory_params": {
+            "type": "periodic",
+            "a": a,
+            "b": b,
+            "c": c,
+            "trajectories_cm": trajectories_cm,
+        },
+        "cell_pop_cm": cell_pop_cm,
+    }
+
+
+######################################################
+## Sigmoid
+######################################################
+
+
+def sigmoid(x):
+    """Return sigmoid value"""
+    z = np.exp(-x)
+    sig = 1 / (1 + z)
+
+    return sig
+
+
+def sample_sigmoid_trajectories(num_cell_types):
+    # generate the celltype proportions
+    effect_size = torch.rand(num_cell_types)  # 0,1
+    shift = torch.rand(num_cell_types) * 2 - 1
+    magnitude = torch.where(torch.rand(num_cell_types) < 0.5, -1.0, 1.0)
+
+    return {"effect_size": effect_size, "shift": shift, "magnitude": magnitude}
+
+
+def sample_sigmoid_proportions(
+    num_cell_types, num_samples, t_m, dirichlet_alpha=1e4, trajectory_coefficients=None
+):
     """Generate a sample of sigmoid proportions
 
     :param num_cell_types: number of cell types to simulate
@@ -264,10 +330,14 @@ def sample_sigmoid_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha
 
     :return: Dictionary of coefficients
     """
-    # generate the celltype proportions
-    effect_size = torch.rand(num_cell_types)  # 0,1
-    shift = torch.rand(num_cell_types) * 2 - 1
-    magnitude = torch.where(torch.rand(num_cell_types) < 0.5, -1.0, 1.0)
+    if trajectory_coefficients is None:
+        trajectory_coefficients = sample_sigmoid_trajectories(
+            num_cell_types, num_samples
+        )
+
+    effect_size = trajectory_coefficients["effect_size"]
+    shift = trajectory_coefficients["shift"]
+    magnitude = trajectory_coefficients["magnitude"]
 
     # Generate trajectories_cm
     trajectories_cm = torch.zeros(num_cell_types, num_samples)
@@ -277,7 +347,6 @@ def sample_sigmoid_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha
             * effect_size[i]
         )
 
-    # Normalize trajectories_cm
     trajectories_cm = torch.nn.functional.softmax(trajectories_cm, dim=0)
 
     # For every sample, sample proportions from trajectory
@@ -302,6 +371,11 @@ def sample_sigmoid_proportions(num_cell_types, num_samples, t_m, dirichlet_alpha
     }
 
 
+######################################################
+## Error Calculation
+######################################################
+
+
 def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=10):
     """Calculate the prediction error of a deconvolution on simulated results
 
@@ -310,20 +384,21 @@ def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=
     :n_intervals: number of intervals over which to evaluate the results
     """
 
+    # TODO: Move to sim_res
+    start_time = -5
+    end_time = 5
+    step = (end_time - start_time) / n_intervals
+
+    t_m = torch.arange(start_time, end_time, step)
+    num_samples = t_m.shape[0]
+
     ## Get the ground truth
     if sim_res["trajectory_params"]["type"] == "sigmoid":
-        start_time = -5
-        end_time = 5
-        step = (end_time - start_time) / n_intervals
-        # step = 1
-        t_m = torch.arange(start_time, end_time, step)
         magnitude = sim_res["trajectory_params"]["magnitude"]
         shift = sim_res["trajectory_params"]["shift"]
         effect_size = sim_res["trajectory_params"]["effect_size"]
         num_cell_types = sim_res["trajectory_params"]["effect_size"].shape[0]
 
-        # TODO: Use function
-        num_samples = t_m.shape[0]
         cell_pop_cm = torch.zeros(num_cell_types, num_samples)
         for i in range(num_cell_types):
             cell_pop_cm[i, :] = (
@@ -331,8 +406,31 @@ def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=
                 * effect_size[i]
             )
         ground_truth_proportions_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0).T
+    elif sim_res["trajectory_params"]["type"] == "linear":
+        a = sim_res["trajectory_params"]["a"]
+        b = sim_res["trajectory_params"]["b"]
+        num_cell_types = sim_res["trajectory_params"]["trajectories_cm"].shape[0]
+
+        cell_pop_cm = torch.zeros(num_cell_types, num_samples)
+        for i in range(num_cell_types):
+            cell_pop_cm[i, :] = torch.Tensor(list(a[i] * x + b[i] for x in t_m))
+        ground_truth_proportions_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0).T
+    elif sim_res["trajectory_params"]["type"] == "periodic":
+        a = sim_res["trajectory_params"]["a"]
+        b = sim_res["trajectory_params"]["b"]
+        c = sim_res["trajectory_params"]["c"]
+        num_cell_types = sim_res["trajectory_params"]["trajectories_cm"].shape[0]
+
+        cell_pop_cm = torch.zeros(num_cell_types, num_samples)
+        for i in range(num_cell_types):
+            cell_pop_cm[i, :] = torch.Tensor(
+                list(a[i] * torch.sin(b[i] * x + c[i]) for x in t_m)
+            )
+        ground_truth_proportions_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0).T
     else:
-        raise Error("Unknown trajectory type")
+        raise Exception(
+            f'Unknown trajectory type { sim_res["trajectory_params"]["type"] }'
+        )
 
     # Get the predictions
     pseudo_time_reg_deconv_sim.calculate_composition_trajectories(

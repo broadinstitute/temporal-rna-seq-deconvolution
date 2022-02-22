@@ -382,7 +382,7 @@ class TimeRegularizedDeconvolution:
         trajectory_mc = torch.nn.functional.softmax(
             unnorm_cell_pop_base_c[None, :] + deformation_mc, dim=-1
         )
-        
+
         broken_code = False
 
         if not broken_code:
@@ -390,22 +390,18 @@ class TimeRegularizedDeconvolution:
             cell_pop_mc = trajectory_mc
         else:
             # TODO: Make this a learnable parameter
-            dirichlet_alpha = torch.tensor([1e4], device = self.device)
+            dirichlet_alpha = torch.tensor([1e4], device=self.device)
             # These are the per-sample cell type proportions
             # Their position on the simplex is defined by the overall trajectory
-            concentration = trajectory_mc 
-    
-            
-            dirichlet_dist = dist.Dirichlet(
-                concentration = concentration
-            ).to_event(1)
-            #assert dirichlet_dist.event_shape == (self.dataset.num_cell_types,)
+            concentration = trajectory_mc
+
+            dirichlet_dist = dist.Dirichlet(concentration=concentration).to_event(1)
+            # assert dirichlet_dist.event_shape == (self.dataset.num_cell_types,)
 
             cell_pop_mc = pyro.sample(
                 "cell_pop_mc",
                 dirichlet_dist,
             )
-            
 
         assert cell_pop_mc.shape == (
             self.dataset.num_samples,
@@ -467,16 +463,16 @@ class TimeRegularizedDeconvolution:
             ),
         )
 
-#         # Cell composition
-#         cell_pop_posterior_loc_mc = pyro.param(
-#             "cell_pop_posterior_loc_mc",
-#             torch.tensor(
-#                 self.cell_pop_posterior_loc_mc,
-#                 device=self.device,
-#                 dtype=self.dtype,
-#             ),
-#             constraint = constraints.positive
-#         )
+        #         # Cell composition
+        #         cell_pop_posterior_loc_mc = pyro.param(
+        #             "cell_pop_posterior_loc_mc",
+        #             torch.tensor(
+        #                 self.cell_pop_posterior_loc_mc,
+        #                 device=self.device,
+        #                 dtype=self.dtype,
+        #             ),
+        #             constraint = constraints.positive
+        #         )
 
         # posterior sample statements
         log_phi_g = pyro.sample(
@@ -495,15 +491,14 @@ class TimeRegularizedDeconvolution:
         unnorm_cell_pop_deform_ck = pyro.sample(
             "unnorm_cell_pop_deform_ck",
             dist.Delta(v=unnorm_cell_pop_deform_posterior_loc_ck).to_event(2),
-            
         )
 
-#         # These become NaNs
-#         #print(cell_pop_posterior_loc_mc)
-#         cell_pop_mc = pyro.sample(
-#             "cell_pop_mc",
-#             dist.Dirichlet(concentration = cell_pop_posterior_loc_mc).to_event(1),
-#         )
+    #         # These become NaNs
+    #         #print(cell_pop_posterior_loc_mc)
+    #         cell_pop_mc = pyro.sample(
+    #             "cell_pop_mc",
+    #             dist.Dirichlet(concentration = cell_pop_posterior_loc_mc).to_event(1),
+    #         )
 
     def fit_model(
         self, n_iters=3000, log_frequency=100, verbose=True, clear_param_store=True
