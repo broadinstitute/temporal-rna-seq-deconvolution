@@ -20,8 +20,13 @@ from matplotlib.pyplot import cm
 import pandas as pd
 import seaborn as sns
 
+import scanpy as sc
+
 from time_deconv.stats_helpers import *
 
+
+from time_deconv.time_deconv_simulator import *
+from time_deconv.stats_helpers import *
 
 # Indices:
 
@@ -127,7 +132,20 @@ class DeconvolutionDataset:
             self.selected_genes = list(
                 selected_genes_bulk.intersection(selected_genes_sc)
             )
-
+        elif feature_selection_method == 'single_cell_od':
+            ann_data_working = sc_anndata.copy()
+            
+            sc.pp.filter_cells(ann_data_working, min_genes=200)
+            sc.pp.filter_genes(ann_data_working, min_cells=3)
+            sc.pp.normalize_total(ann_data_working, target_sum=1e4)
+            sc.pp.log1p(ann_data_working)
+            sc.pp.highly_variable_genes(ann_data_working, min_mean=0.0125, max_mean=3, min_disp=0.5)
+            selected_genes_sc = set(ann_data_working.var.highly_variable.index[ann_data_working.var.highly_variable])
+            
+            self.selected_genes = list(
+                selected_genes_sc.intersection(set( list(bulk_anndata.var.index) ))
+            )
+            
         return self.selected_genes
 
     @cachedproperty
@@ -482,6 +500,22 @@ class TimeRegularizedDeconvolution:
         )
 
         # Cell composition
+#         new_code = False
+#         if new_code:
+#              cell_pop_unconstrained_posterior_loc_mc = pyro.param(
+#                 "cell_pop_unconstrained_posterior_loc_mc",
+#                 torch.tensor(
+#                     self.cell_pop_posterior_loc_mc,
+#                     device=self.device,
+#                     dtype=self.dtype,
+#                 ),
+#                 constraint=constraints.simplex,
+#             )
+#             epsilon = 1e-6
+#             # This is on a simplex
+#             cell_pop_posterior_loc_mc = epsilon / self.cell_pop_posterior_loc_mc.shape[-1] + 
+#                 (1-epsilon) * cell_pop_unconstrained_posterior_loc_mc
+#         else:
         cell_pop_posterior_loc_mc = pyro.param(
             "cell_pop_posterior_loc_mc",
             torch.tensor(
@@ -753,7 +787,7 @@ class TimeRegularizedDeconvolution:
             )
 
             sns.boxplot(
-                x="time", y="proportion", data=df1, ax=ax[r_i, c_i], color=cm.tab10(i)
+                x="time", y="proportion", data=df1, ax=ax[c_i, r_i], color=cm.tab10(i)
             )
             ax[c_i, r_i].set_title(self.dataset.cell_type_str_list[i])
 
@@ -761,7 +795,7 @@ class TimeRegularizedDeconvolution:
 
         return ax
 
-
+    
 def evaluate_model(params: dict, reference_deconvolution: TimeRegularizedDeconvolution):
     # TODO: Update to work with different proportion types
 
