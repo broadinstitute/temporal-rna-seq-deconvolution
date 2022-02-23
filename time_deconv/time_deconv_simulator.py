@@ -435,9 +435,20 @@ def sample_sigmoid_proportions(
 ######################################################
 ## Error Calculation
 ######################################################
+def calculate_sample_prediction_error(sim_res, pseudo_time_reg_deconv_sim):
+    # Ground Truth
+    ground_truth_cell_pop_cm = sim_res['cell_pop_cm']
+    estimated_cell_pop_cm = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu().T
+    
+    l1_error = (ground_truth_cell_pop_cm - estimated_cell_pop_cm).abs().sum([0,1])
+    l1_error_norm = l1_error / estimated_cell_pop_cm.shape[-1]
+    
+    return {
+        'l1_error': l1_error,
+        'l1_error_norm': l1_error_norm
+    }
 
-
-def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=1000):
+def calculate_trajectory_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=1000):
     """Calculate the prediction error of a deconvolution on simulated results
 
     :param sim_res: results of a simulation
