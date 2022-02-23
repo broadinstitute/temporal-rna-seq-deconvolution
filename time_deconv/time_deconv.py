@@ -13,8 +13,10 @@ from sklearn.linear_model import Ridge
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
 
+import math
 import tqdm
 import copy
+from matplotlib.pyplot import cm
 
 from time_deconv.stats_helpers import *
 
@@ -669,7 +671,7 @@ class TimeRegularizedDeconvolution:
 
     def plot_phi_g_distribution(self):
         """Plot the distribution of phi_g"""
-        phi_g = pyro.param("log_phi_posterior_loc_g").detach().exp().cpu()
+        phi_g = pyro.param("log_phi_posterior_loc_g").clone().detach().exp().cpu()
         fig, ax = matplotlib.pyplot.subplots()
         ax.hist(phi_g.numpy(), bins=100)
         ax.set_xlabel("$\phi_g$")
@@ -679,14 +681,44 @@ class TimeRegularizedDeconvolution:
 
     def plot_beta_g_distribution(self):
         """Plot distribution of beta_g"""
-        beta_g = pyro.param("log_beta_posterior_loc_g").detach().exp().cpu()
+        beta_g = pyro.param("log_beta_posterior_loc_g").clone().detach().exp().cpu()
         fig, ax = matplotlib.pyplot.subplots()
         ax.hist(beta_g.numpy(), bins=100)
         ax.set_xlabel("$beta_g$")
         ax.set_ylabel("Counts")
 
         return ax
-
+    
+    def plot_sample_compositions_scatter(self, figsize = (16,9)):
+        """Plot a facetted scatter plot of the individual sample compositions
+        
+        :param figsize: tuple of size 2 with figure size information
+        """
+        t_m = self.dataset.t_m.clone().detach().cpu()
+        cell_pop = pyro.param('cell_pop_posterior_loc_mc').clone().detach().cpu()
+        sort_order = torch.argsort(self.dataset.t_m)
+        
+        n_cell_types = cell_pop.shape[1]
+        
+        n_rows = math.ceil(math.sqrt(n_cell_types))
+        n_cols = math.ceil(n_cell_types // n_rows)
+        
+        fig, ax = matplotlib.pyplot.subplots(n_rows, n_cols, figsize=figsize)
+        
+        for i in range(cell_pop.shape[1]):
+            r_i = int(i // n_rows)
+            c_i = int(i % n_rows)
+            
+            ax[c_i, r_i].scatter(
+                t_m[sort_order] * 8,
+                cell_pop[sort_order,i].clone().detach().cpu(),
+                color = cm.tab10(i)
+            )
+            ax[c_i, r_i].set_title(self.dataset.cell_type_str_list[i])
+            
+        matplotlib.pyplot.tight_layout()
+        
+        return ax
 
 def evaluate_model(params: dict, reference_deconvolution: TimeRegularizedDeconvolution):
     # TODO: Update to work with different proportion types
