@@ -76,8 +76,8 @@ def simulate_data(
     dirichlet_alpha=1000,
     trajectory_type="sigmoid",
     trajectory_coef=None,
-    trajectory_sample_params = {},
-    seed = None,
+    trajectory_sample_params={},
+    seed=None,
 ):
     """Simulate bulk data with compositional changes
 
@@ -103,21 +103,33 @@ def simulate_data(
 
     if trajectory_type == "sigmoid":
         proportions_sample = sample_sigmoid_proportions(
-            num_cell_types = num_cell_types, 
-            num_samples = num_samples, 
-            t_m = t_m, 
-            dirichlet_alpha = dirichlet_alpha,
-            trajectory_coefficients = trajectory_coef, 
-            trajectory_sample_params = trajectory_sample_params, 
-            seed = seed
+            num_cell_types=num_cell_types,
+            num_samples=num_samples,
+            t_m=t_m,
+            dirichlet_alpha=dirichlet_alpha,
+            trajectory_coefficients=trajectory_coef,
+            trajectory_sample_params=trajectory_sample_params,
+            seed=seed,
         )
     elif trajectory_type == "periodic":
         proportions_sample = sample_periodic_proportions(
-            num_cell_types, num_samples, t_m, dirichlet_alpha, trajectory_coef
+            num_cell_types=num_cell_types,
+            num_samples=num_samples,
+            t_m=t_m,
+            dirichlet_alpha=dirichlet_alpha,
+            trajectory_coefficients=trajectory_coef,
+            trajectory_sample_params=trajectory_sample_params,
+            seed=seed,
         )
     elif trajectory_type == "linear":
         proportions_sample = sample_linear_proportions(
-            num_cell_types, num_samples, t_m, dirichlet_alpha, trajectory_coef
+            num_cell_types,
+            num_samples,
+            t_m,
+            dirichlet_alpha,
+            trajectory_coef,
+            trajectory_sample_params=trajectory_sample_params,
+            seed=seed,
         )
     else:
         raise Exception("Unkown Trajectory Type")
@@ -186,19 +198,27 @@ def sample_trajectories(type, num_cell_types):
 ######################################################
 
 
-def sample_linear_trajectories(num_cell_types, seed=None):
+def sample_linear_trajectories(
+    num_cell_types, seed=None, a_min=0, a_max=10, b_min=-10, b_max=10
+):
     if seed is not None:
         torch.manual_seed(seed)
-        
+
     # y = ax+b
-    a = torch.rand(num_cell_types) * 10
-    b = torch.rand(num_cell_types) * 20 - 10
+    a = torch.rand(num_cell_types) * (a_max - a_min) + a_min
+    b = torch.rand(num_cell_types) * (b_max - b_min) + b_min
 
     return {"a": a, "b": b}
 
 
 def sample_linear_proportions(
-    num_cell_types, num_samples, t_m, dirichlet_alpha=1e4, trajectory_coef=None
+    num_cell_types,
+    num_samples,
+    t_m,
+    dirichlet_alpha=1e4,
+    trajectory_coef=None,
+    trajectory_sample_params=None,
+    seed=None,
 ):
     """Generate a sample of linear proportions
 
@@ -211,7 +231,9 @@ def sample_linear_proportions(
     """
 
     if trajectory_coef is None:
-        trajectory_coef = sample_linear_trajectories(num_cell_types)
+        trajectory_coef = sample_linear_trajectories(
+            num_cell_types, seed=seed, **trajectory_sample_params
+        )
 
     a = trajectory_coef["a"]
     b = trajectory_coef["b"]
@@ -249,20 +271,30 @@ def sample_linear_proportions(
 ######################################################
 
 
-def sample_periodic_trajectories(num_cell_types, seed=None):
+def sample_periodic_trajectories(
+    num_cell_types, seed=None, a_min=-5, a_max=5, b_min=0, b_max=0.75, c_min=0, c_max=5
+):
+    """Get a sample of coefficients for periodic trajectories"""
+
     if seed is not None:
         torch.manual_seed(seed)
-        
+
     # y = a sin(b*x+c)
-    a = torch.rand(num_cell_types) * 10 - 5  # (-5,5)
-    b = torch.rand(num_cell_types) * 0.75
-    c = torch.rand(num_cell_types) * 5
+    a = torch.rand(num_cell_types) * (a_max - a_min) + a_min
+    b = torch.rand(num_cell_types) * (b_max - b_min) + b_min
+    c = torch.rand(num_cell_types) * (c_max - c_min) + c_min
 
     return {"a": a, "b": b, "c": c}
 
 
 def sample_periodic_proportions(
-    num_cell_types, num_samples, t_m, dirichlet_alpha=1e4, trajectory_coefficients=None
+    num_cell_types,
+    num_samples,
+    t_m,
+    dirichlet_alpha=1e4,
+    trajectory_coefficients=None,
+    trajectory_sample_params=None,
+    seed=None,
 ):
     """Get a sample of periodic cell proportions
 
@@ -273,7 +305,7 @@ def sample_periodic_proportions(
     """
     if trajectory_coefficients is None:
         trajectory_coefficients = sample_periodic_trajectories(
-            num_cell_types, num_samples
+            num_cell_types=num_cell_types, seed=seed, **trajectory_sample_params
         )
 
     a = trajectory_coefficients["a"]
@@ -317,35 +349,39 @@ def sample_periodic_proportions(
 
 def sigmoid(x):
     """Return sigmoid function value"""
-    return (1. / (1. + np.exp(-x)))
+    return 1.0 / (1.0 + np.exp(-x))
 
 
 def sample_sigmoid_trajectories(
-        num_cell_types, 
-        seed=None, 
-        effect_size_min = -1, 
-        effect_size_max = 1,           
-        shift_min = -2, 
-        shift_max = 2 ):
+    num_cell_types,
+    seed=None,
+    effect_size_min=-1,
+    effect_size_max=1,
+    shift_min=-2,
+    shift_max=2,
+):
     """Return sigmoid trajectory param dictionary"""
-    
+
     if seed is not None:
         torch.manual_seed(seed)
-        
-    effect_size = torch.rand(num_cell_types) * (effect_size_max - effect_size_min) + effect_size_min
+
+    effect_size = (
+        torch.rand(num_cell_types) * (effect_size_max - effect_size_min)
+        + effect_size_min
+    )
     shift = torch.rand(num_cell_types) * (shift_max - shift_min) + shift_min
 
     return {"effect_size": effect_size, "shift": shift}
 
 
 def sample_sigmoid_proportions(
-    num_cell_types, 
-    num_samples, 
-    t_m, 
-    dirichlet_alpha=1e4, 
-    trajectory_coefficients=None, 
-    trajectory_sample_params = {},
-    seed = None,
+    num_cell_types,
+    num_samples,
+    t_m,
+    dirichlet_alpha=1e4,
+    trajectory_coefficients=None,
+    trajectory_sample_params={},
+    seed=None,
 ):
     """Generate a sample of sigmoid proportions
 
@@ -358,9 +394,9 @@ def sample_sigmoid_proportions(
     """
     if trajectory_coefficients is None:
         trajectory_coefficients = sample_sigmoid_trajectories(
-            num_cell_types = num_cell_types, 
-            seed = seed,
-            **trajectory_sample_params, 
+            num_cell_types=num_cell_types,
+            seed=seed,
+            **trajectory_sample_params,
         )
 
     effect_size = trajectory_coefficients["effect_size"]
@@ -369,8 +405,8 @@ def sample_sigmoid_proportions(
     # Generate trajectories_cm
     trajectories_cm = torch.zeros(num_cell_types, num_samples)
     for i in range(num_cell_types):
-        trajectories_cm[i, :] = (
-            torch.Tensor(list(sigmoid(effect_size[i] * x + shift[i]) for x in t_m))
+        trajectories_cm[i, :] = torch.Tensor(
+            list(sigmoid(effect_size[i] * x + shift[i]) for x in t_m)
         )
 
     trajectories_cm = torch.nn.functional.softmax(trajectories_cm, dim=0)
@@ -425,8 +461,8 @@ def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=
 
         cell_pop_cm = torch.zeros(num_cell_types, num_samples)
         for i in range(num_cell_types):
-            cell_pop_cm[i, :] = (
-                torch.Tensor(list(sigmoid(effect_size[i] * x + shift[i]) for x in t_m))
+            cell_pop_cm[i, :] = torch.Tensor(
+                list(sigmoid(effect_size[i] * x + shift[i]) for x in t_m)
             )
         ground_truth_proportions_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0).T
     elif sim_res["trajectory_params"]["type"] == "linear":
