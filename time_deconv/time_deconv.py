@@ -17,6 +17,8 @@ import math
 import tqdm
 import copy
 from matplotlib.pyplot import cm
+import pandas as pd
+import seaborn as sns
 
 from time_deconv.stats_helpers import *
 
@@ -688,37 +690,77 @@ class TimeRegularizedDeconvolution:
         ax.set_ylabel("Counts")
 
         return ax
-    
-    def plot_sample_compositions_scatter(self, figsize = (16,9)):
+
+    def plot_sample_compositions_scatter(self, figsize=(16, 9)):
         """Plot a facetted scatter plot of the individual sample compositions
-        
+
         :param figsize: tuple of size 2 with figure size information
         """
         t_m = self.dataset.t_m.clone().detach().cpu()
-        cell_pop = pyro.param('cell_pop_posterior_loc_mc').clone().detach().cpu()
+        cell_pop = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
         sort_order = torch.argsort(self.dataset.t_m)
-        
+
         n_cell_types = cell_pop.shape[1]
-        
+
         n_rows = math.ceil(math.sqrt(n_cell_types))
         n_cols = math.ceil(n_cell_types // n_rows)
-        
+
         fig, ax = matplotlib.pyplot.subplots(n_rows, n_cols, figsize=figsize)
-        
+
         for i in range(cell_pop.shape[1]):
             r_i = int(i // n_rows)
             c_i = int(i % n_rows)
-            
+
+            # TODO: Fix this 8 -- time scaling should come from dataset
             ax[c_i, r_i].scatter(
                 t_m[sort_order] * 8,
-                cell_pop[sort_order,i].clone().detach().cpu(),
-                color = cm.tab10(i)
+                cell_pop[sort_order, i].clone().detach().cpu(),
+                color=cm.tab10(i),
             )
             ax[c_i, r_i].set_title(self.dataset.cell_type_str_list[i])
-            
+
         matplotlib.pyplot.tight_layout()
-        
+
         return ax
+
+    def plot_sample_compositions_boxplot(self, figsize=(16, 9)):
+        figsize = (16, 9)
+
+        t_m = self.dataset.t_m.clone().detach().cpu()
+        cell_pop = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
+        sort_order = torch.argsort(self.dataset.t_m)
+
+        n_cell_types = cell_pop.shape[1]
+
+        n_rows = math.ceil(math.sqrt(n_cell_types))
+        n_cols = math.ceil(n_cell_types // n_rows)
+
+        fig, ax = matplotlib.pyplot.subplots(n_rows, n_cols, figsize=figsize)
+
+        for i in range(cell_pop.shape[1]):
+            r_i = int(i // n_rows)
+            c_i = int(i % n_rows)
+
+            t = t_m[sort_order] * 8
+            prop = cell_pop[sort_order, i].clone().detach().cpu()
+            labels = self.dataset.cell_type_str_list[i]
+
+            df1 = pd.DataFrame(
+                {
+                    "time": t,
+                    "proportion": prop,
+                }
+            )
+
+            sns.boxplot(
+                x="time", y="proportion", data=df1, ax=ax[r_i, c_i], color=cm.tab10(i)
+            )
+            ax[c_i, r_i].set_title(self.dataset.cell_type_str_list[i])
+
+        matplotlib.pyplot.tight_layout()
+
+        return ax
+
 
 def evaluate_model(params: dict, reference_deconvolution: TimeRegularizedDeconvolution):
     # TODO: Update to work with different proportion types
