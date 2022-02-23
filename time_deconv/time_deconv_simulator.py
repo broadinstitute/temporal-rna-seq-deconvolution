@@ -77,6 +77,7 @@ def simulate_data(
     trajectory_type="sigmoid",
     trajectory_coef=None,
     trajectory_sample_params = {},
+    seed = None,
 ):
     """Simulate bulk data with compositional changes
 
@@ -102,7 +103,13 @@ def simulate_data(
 
     if trajectory_type == "sigmoid":
         proportions_sample = sample_sigmoid_proportions(
-            num_cell_types, num_samples, t_m, dirichlet_alpha, trajectory_coef, trajectory_sample_params = trajectory_sample_params
+            num_cell_types = num_cell_types, 
+            num_samples = num_samples, 
+            t_m = t_m, 
+            dirichlet_alpha = dirichlet_alpha,
+            trajectory_coefficients = trajectory_coef, 
+            trajectory_sample_params = trajectory_sample_params, 
+            seed = seed
         )
     elif trajectory_type == "periodic":
         proportions_sample = sample_periodic_proportions(
@@ -179,8 +186,10 @@ def sample_trajectories(type, num_cell_types):
 ######################################################
 
 
-def sample_linear_trajectories(num_cell_types, seed=2022):
-    torch.manual_seed(seed)
+def sample_linear_trajectories(num_cell_types, seed=None):
+    if seed is not None:
+        torch.manual_seed(seed)
+        
     # y = ax+b
     a = torch.rand(num_cell_types) * 10
     b = torch.rand(num_cell_types) * 20 - 10
@@ -240,8 +249,10 @@ def sample_linear_proportions(
 ######################################################
 
 
-def sample_periodic_trajectories(num_cell_types, seed=2022):
-    torch.manual_seed(seed)
+def sample_periodic_trajectories(num_cell_types, seed=None):
+    if seed is not None:
+        torch.manual_seed(seed)
+        
     # y = a sin(b*x+c)
     a = torch.rand(num_cell_types) * 10 - 5  # (-5,5)
     b = torch.rand(num_cell_types) * 0.75
@@ -314,8 +325,9 @@ def sample_sigmoid_trajectories(
         seed=None, 
         effect_size_min = -1, 
         effect_size_max = 1,           
-        shift_min = 10, 
-        shift_max = 30):
+        shift_min = -2, 
+        shift_max = 2 ):
+    """Return sigmoid trajectory param dictionary"""
     
     if seed is not None:
         torch.manual_seed(seed)
@@ -327,7 +339,13 @@ def sample_sigmoid_trajectories(
 
 
 def sample_sigmoid_proportions(
-    num_cell_types, num_samples, t_m, dirichlet_alpha=1e4, trajectory_coefficients=None, trajectory_sample_params = {},
+    num_cell_types, 
+    num_samples, 
+    t_m, 
+    dirichlet_alpha=1e4, 
+    trajectory_coefficients=None, 
+    trajectory_sample_params = {},
+    seed = None,
 ):
     """Generate a sample of sigmoid proportions
 
@@ -340,7 +358,9 @@ def sample_sigmoid_proportions(
     """
     if trajectory_coefficients is None:
         trajectory_coefficients = sample_sigmoid_trajectories(
-            num_cell_types, num_samples, **trajectory_sample_params
+            num_cell_types = num_cell_types, 
+            seed = seed,
+            **trajectory_sample_params, 
         )
 
     effect_size = trajectory_coefficients["effect_size"]
