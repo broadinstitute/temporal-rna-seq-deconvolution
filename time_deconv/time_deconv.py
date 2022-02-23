@@ -13,6 +13,9 @@ from sklearn.linear_model import Ridge
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
 
+import tqdm
+import copy
+
 from time_deconv.stats_helpers import *
 
 
@@ -686,6 +689,7 @@ class TimeRegularizedDeconvolution:
 
 
 def evaluate_model(params: dict, reference_deconvolution: TimeRegularizedDeconvolution):
+    # TODO: Update to work with different proportion types
 
     sim_res = simulate_with_sigmoid_proportions(
         **params["simulation_params"], reference_deconvolution=reference_deconvolution
