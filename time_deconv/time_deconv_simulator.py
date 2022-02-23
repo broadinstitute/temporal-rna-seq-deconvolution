@@ -76,6 +76,7 @@ def simulate_data(
     dirichlet_alpha=1000,
     trajectory_type="sigmoid",
     trajectory_coef=None,
+    trajectory_sample_params = {},
 ):
     """Simulate bulk data with compositional changes
 
@@ -101,7 +102,7 @@ def simulate_data(
 
     if trajectory_type == "sigmoid":
         proportions_sample = sample_sigmoid_proportions(
-            num_cell_types, num_samples, t_m, dirichlet_alpha, trajectory_coef
+            num_cell_types, num_samples, t_m, dirichlet_alpha, trajectory_coef, trajectory_sample_params = trajectory_sample_params
         )
     elif trajectory_type == "periodic":
         proportions_sample = sample_periodic_proportions(
@@ -304,25 +305,29 @@ def sample_periodic_proportions(
 
 
 def sigmoid(x):
-    """Return sigmoid value"""
-    z = np.exp(-x)
-    sig = 1 / (1 + z)
-
-    return sig
+    """Return sigmoid function value"""
+    return (1. / (1. + np.exp(-x)))
 
 
-def sample_sigmoid_trajectories(num_cell_types, seed=2022):
-    torch.manual_seed(seed)
-    # generate the celltype proportions
-    effect_size = torch.rand(num_cell_types)  # 0,1
-    shift = torch.rand(num_cell_types) * 2 - 1
-    magnitude = torch.where(torch.rand(num_cell_types) < 0.5, -1.0, 1.0)
+def sample_sigmoid_trajectories(
+        num_cell_types, 
+        seed=None, 
+        effect_size_min = -1, 
+        effect_size_max = 1,           
+        shift_min = 10, 
+        shift_max = 30):
+    
+    if seed is not None:
+        torch.manual_seed(seed)
+        
+    effect_size = torch.rand(num_cell_types) * (effect_size_max - effect_size_min) + effect_size_min
+    shift = torch.rand(num_cell_types) * (shift_max - shift_min) + shift_min
 
-    return {"effect_size": effect_size, "shift": shift, "magnitude": magnitude}
+    return {"effect_size": effect_size, "shift": shift}
 
 
 def sample_sigmoid_proportions(
-    num_cell_types, num_samples, t_m, dirichlet_alpha=1e4, trajectory_coefficients=None
+    num_cell_types, num_samples, t_m, dirichlet_alpha=1e4, trajectory_coefficients=None, trajectory_sample_params = {},
 ):
     """Generate a sample of sigmoid proportions
 
@@ -335,19 +340,17 @@ def sample_sigmoid_proportions(
     """
     if trajectory_coefficients is None:
         trajectory_coefficients = sample_sigmoid_trajectories(
-            num_cell_types, num_samples
+            num_cell_types, num_samples, **trajectory_sample_params
         )
 
     effect_size = trajectory_coefficients["effect_size"]
     shift = trajectory_coefficients["shift"]
-    magnitude = trajectory_coefficients["magnitude"]
 
     # Generate trajectories_cm
     trajectories_cm = torch.zeros(num_cell_types, num_samples)
     for i in range(num_cell_types):
         trajectories_cm[i, :] = (
-            torch.Tensor(list(sigmoid(magnitude[i] * x + shift[i]) for x in t_m))
-            * effect_size[i]
+            torch.Tensor(list(sigmoid(effect_size[i] * x + shift[i]) for x in t_m))
         )
 
     trajectories_cm = torch.nn.functional.softmax(trajectories_cm, dim=0)
@@ -367,7 +370,6 @@ def sample_sigmoid_proportions(
             "type": "sigmoid",
             "effect_size": effect_size,
             "shift": shift,
-            "magnitude": magnitude,
             "trajectories_cm": trajectories_cm,
         },
         "cell_pop_cm": cell_pop_cm,
@@ -397,7 +399,6 @@ def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=
 
     ## Get the ground truth
     if sim_res["trajectory_params"]["type"] == "sigmoid":
-        magnitude = sim_res["trajectory_params"]["magnitude"]
         shift = sim_res["trajectory_params"]["shift"]
         effect_size = sim_res["trajectory_params"]["effect_size"]
         num_cell_types = sim_res["trajectory_params"]["effect_size"].shape[0]
@@ -405,8 +406,7 @@ def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=
         cell_pop_cm = torch.zeros(num_cell_types, num_samples)
         for i in range(num_cell_types):
             cell_pop_cm[i, :] = (
-                torch.Tensor(list(sigmoid(magnitude[i] * x + shift[i]) for x in t_m))
-                * effect_size[i]
+                torch.Tensor(list(sigmoid(effect_size[i] * x + shift[i]) for x in t_m))
             )
         ground_truth_proportions_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0).T
     elif sim_res["trajectory_params"]["type"] == "linear":
