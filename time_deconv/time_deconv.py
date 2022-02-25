@@ -19,7 +19,7 @@ import copy
 from matplotlib.pyplot import cm
 import pandas as pd
 import seaborn as sns
-
+import time
 import scanpy as sc
 
 from time_deconv.stats_helpers import *
@@ -132,27 +132,35 @@ class DeconvolutionDataset:
             self.selected_genes = list(
                 selected_genes_bulk.intersection(selected_genes_sc)
             )
-        elif feature_selection_method == 'single_cell_od':
+        elif feature_selection_method == "single_cell_od":
             ann_data_working = sc_anndata.copy()
-            
+
             sc.pp.filter_cells(ann_data_working, min_genes=200)
             sc.pp.filter_genes(ann_data_working, min_cells=3)
             sc.pp.normalize_total(ann_data_working, target_sum=1e4)
             sc.pp.log1p(ann_data_working)
-            sc.pp.highly_variable_genes(ann_data_working, min_mean=0.0125, max_mean=3, min_disp=0.5)
-            selected_genes_sc = set(ann_data_working.var.highly_variable.index[ann_data_working.var.highly_variable])
-            
-            self.selected_genes = list(
-                selected_genes_sc.intersection(set( list(bulk_anndata.var.index) ))
+            sc.pp.highly_variable_genes(
+                ann_data_working, min_mean=0.0125, max_mean=3, min_disp=0.5
             )
-            
+            selected_genes_sc = set(
+                ann_data_working.var.highly_variable.index[
+                    ann_data_working.var.highly_variable
+                ]
+            )
+
+            self.selected_genes = list(
+                selected_genes_sc.intersection(set(list(bulk_anndata.var.index)))
+            )
+
         return self.selected_genes
 
     @cachedproperty
     def cell_type_str_list(self) -> List[str]:
-        #return sorted(list(set(self.sc_anndata.obs[self.sc_celltype_col])))
+        # return sorted(list(set(self.sc_anndata.obs[self.sc_celltype_col])))
         # Nan safe version
-        return sorted(list(x for x in set(self.sc_anndata.obs['hypercluster']) if str(x) != 'nan'))
+        return sorted(
+            list(x for x in set(self.sc_anndata.obs["hypercluster"]) if str(x) != "nan")
+        )
 
     @cachedproperty
     def cell_type_str_to_index_map(self) -> Dict[str, int]:
@@ -502,22 +510,22 @@ class TimeRegularizedDeconvolution:
         )
 
         # Cell composition
-#         new_code = False
-#         if new_code:
-#              cell_pop_unconstrained_posterior_loc_mc = pyro.param(
-#                 "cell_pop_unconstrained_posterior_loc_mc",
-#                 torch.tensor(
-#                     self.cell_pop_posterior_loc_mc,
-#                     device=self.device,
-#                     dtype=self.dtype,
-#                 ),
-#                 constraint=constraints.simplex,
-#             )
-#             epsilon = 1e-6
-#             # This is on a simplex
-#             cell_pop_posterior_loc_mc = epsilon / self.cell_pop_posterior_loc_mc.shape[-1] + 
-#                 (1-epsilon) * cell_pop_unconstrained_posterior_loc_mc
-#         else:
+        #         new_code = False
+        #         if new_code:
+        #              cell_pop_unconstrained_posterior_loc_mc = pyro.param(
+        #                 "cell_pop_unconstrained_posterior_loc_mc",
+        #                 torch.tensor(
+        #                     self.cell_pop_posterior_loc_mc,
+        #                     device=self.device,
+        #                     dtype=self.dtype,
+        #                 ),
+        #                 constraint=constraints.simplex,
+        #             )
+        #             epsilon = 1e-6
+        #             # This is on a simplex
+        #             cell_pop_posterior_loc_mc = epsilon / self.cell_pop_posterior_loc_mc.shape[-1] +
+        #                 (1-epsilon) * cell_pop_unconstrained_posterior_loc_mc
+        #         else:
         cell_pop_posterior_loc_mc = pyro.param(
             "cell_pop_posterior_loc_mc",
             torch.tensor(
@@ -573,6 +581,7 @@ class TimeRegularizedDeconvolution:
             model=self.model, guide=self.delta_guide, optim=optim, loss=Trace_ELBO()
         )
 
+        start_time = time.time()
         for i_iter in range(n_iters):
             batch_dict = generate_batch(self.dataset, self.device, self.dtype)
 
@@ -590,7 +599,10 @@ class TimeRegularizedDeconvolution:
 
             if verbose:
                 if i_iter % log_frequency == 0:
-                    print(f"[iteration: {i_iter}]   loss: {self.loss_hist[-1]:.2f}")
+
+                    print(
+                        f"[step: {i_iter}, time: {math.ceil(time.time() - start_time)} s ] loss: {self.loss_hist[-1]:.2f}"
+                    )
 
     def plot_loss(self):
         """Plot the losses during training"""
@@ -602,15 +614,14 @@ class TimeRegularizedDeconvolution:
 
         return ax
 
-    def calculate_composition_trajectories(self, n_intervals=100, return_vals=False, cluster_map =  None):
+    def calculate_composition_trajectories(
+        self, n_intervals=100, return_vals=False, cluster_map=None
+    ):
         """Calculate the composition trajectories"""
-
         # calculate true times
         if self.basis_functions == "polynomial":
             time_step = 1 / n_intervals
-
             times_z = torch.arange(0, 1, time_step)
-
             # Take time to appropriate exponent
             times_zk = torch.pow(
                 times_z[:, None],
@@ -619,7 +630,6 @@ class TimeRegularizedDeconvolution:
                     self.polynomial_degree + 1,
                 ),
             )
-
             # get the trained params
             base_composition_post_c = (
                 pyro.param("unnorm_cell_pop_base_posterior_loc_c").detach().cpu()
@@ -627,27 +637,22 @@ class TimeRegularizedDeconvolution:
             delta_composition_post_ck = (
                 pyro.param("unnorm_cell_pop_deform_posterior_loc_ck").detach().cpu()
             )
-
             # Calculate the deltas for each time point
             delta_cz = torch.matmul(
                 delta_composition_post_ck, times_zk.transpose(-1, -2)
             )
-
             # normalize
-            norm_comp_t = (
+            norm_comp_tc = (
                 torch.nn.functional.softmax(
                     base_composition_post_c[:, None] + delta_cz, dim=0
                 )
                 .numpy()
                 .T
             )
-
             true_times_z = times_z * self.dataset.time_range + self.dataset.time_min
         elif self.basis_functions == "legendre":
             time_step = 2 / n_intervals
-
             times_z = torch.arange(-1, 1, time_step)
-
             # Take time to appropriate exponent
             times_zk = torch.pow(
                 times_z[:, None],
@@ -656,7 +661,6 @@ class TimeRegularizedDeconvolution:
                     self.polynomial_degree + 1,
                 ),
             )
-
             # get the trained params
             base_composition_post_c = (
                 pyro.param("unnorm_cell_pop_base_posterior_loc_c").detach().cpu()
@@ -664,35 +668,46 @@ class TimeRegularizedDeconvolution:
             delta_composition_post_ck = (
                 pyro.param("unnorm_cell_pop_deform_posterior_loc_ck").detach().cpu()
             )
-
             # Calculate the deltas for each time point
             delta_cz = torch.matmul(
                 delta_composition_post_ck, times_zk.transpose(-1, -2)
             )
-
             # normalize
-            norm_comp_t = (
+            norm_comp_tc = (
                 torch.nn.functional.softmax(
                     base_composition_post_c[:, None] + delta_cz, dim=0
                 )
                 .numpy()
                 .T
             )
-
             true_times_z = (
                 (times_z + 1) / 2
             ) * self.dataset.time_range + self.dataset.time_min
-
+        summarized_composition_rt = None
+        norm_comp_ct_torch = torch.Tensor(norm_comp_tc).T
         if cluster_map is not None:
-            # TODO: Summarize the trajectories according to the clustermap here
-            pass
-            
+            toplevel_cell_map = {
+                ct: i for i, ct in enumerate({cluster_map[k] for k in cluster_map})
+            }
+            summarized_num_cells = len(toplevel_cell_map)
+            summarized_composition_rt = torch.zeros(
+                (summarized_num_cells, norm_comp_tc.shape[0])
+            )
+
+            for c_index in range(0, norm_comp_ct_torch.shape[0] - 1):
+                low_cluster_name = self.dataset.cell_type_str_list[c_index]
+                top_cluster_name = cluster_map[low_cluster_name]
+                summarized_composition_rt[toplevel_cell_map[top_cluster_name]].add_(
+                    norm_comp_ct_torch[
+                        c_index,
+                    ]
+                )
         self.calculated_trajectories = {
             "times_z": times_z.numpy(),
             "true_times_z": true_times_z,
-            "norm_comp_t": norm_comp_t,
+            "norm_comp_tc": norm_comp_tc,
+            "summarized_composition_rt": summarized_composition_rt,
         }
-
         if return_vals:
             return self.calculated_trajectories
 
@@ -705,7 +720,7 @@ class TimeRegularizedDeconvolution:
         fig, ax = matplotlib.pyplot.subplots()
         ax.plot(
             self.calculated_trajectories["true_times_z"],
-            self.calculated_trajectories["norm_comp_t"],
+            self.calculated_trajectories["norm_comp_tc"],
         )
         ax.set_title("Predicted cell proportions")
         ax.set_xlabel("Time")
@@ -801,7 +816,7 @@ class TimeRegularizedDeconvolution:
 
         return ax
 
-    
+
 def evaluate_model(params: dict, reference_deconvolution: TimeRegularizedDeconvolution):
     # TODO: Update to work with different proportion types
 
