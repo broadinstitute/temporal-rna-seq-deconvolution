@@ -150,7 +150,9 @@ class DeconvolutionDataset:
 
     @cachedproperty
     def cell_type_str_list(self) -> List[str]:
-        return sorted(list(set(self.sc_anndata.obs[self.sc_celltype_col])))
+        #return sorted(list(set(self.sc_anndata.obs[self.sc_celltype_col])))
+        # Nan safe version
+        return sorted(list(x for x in set(self.sc_anndata.obs['hypercluster']) if str(x) != 'nan'))
 
     @cachedproperty
     def cell_type_str_to_index_map(self) -> Dict[str, int]:
@@ -600,7 +602,7 @@ class TimeRegularizedDeconvolution:
 
         return ax
 
-    def calculate_composition_trajectories(self, n_intervals=100, return_vals=False):
+    def calculate_composition_trajectories(self, n_intervals=100, return_vals=False, cluster_map =  None):
         """Calculate the composition trajectories"""
 
         # calculate true times
@@ -681,6 +683,10 @@ class TimeRegularizedDeconvolution:
                 (times_z + 1) / 2
             ) * self.dataset.time_range + self.dataset.time_min
 
+        if cluster_map is not None:
+            # TODO: Summarize the trajectories according to the clustermap here
+            pass
+            
         self.calculated_trajectories = {
             "times_z": times_z.numpy(),
             "true_times_z": true_times_z,

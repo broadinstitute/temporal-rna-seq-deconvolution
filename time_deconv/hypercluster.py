@@ -13,7 +13,7 @@ def preproc_anndata_hypercluster(anndata_obj):
     sc.pp.log1p(ann_data_working)
     sc.pp.highly_variable_genes(ann_data_working, min_mean=0.0125, max_mean=3, min_disp=0.5)
     sc.pp.scale(ann_data_working, max_value=10)
-    sc.tl.pca(ann_data_working, svd_solver='arpack')
+    sc.tl.pca(ann_data_working, svd_solver='arpack')a
     sc.pp.neighbors(ann_data_working, n_neighbors=10, n_pcs=40)
     
     return ann_data_working
