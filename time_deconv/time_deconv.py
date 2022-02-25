@@ -27,6 +27,7 @@ from time_deconv.stats_helpers import *
 
 from time_deconv.time_deconv_simulator import *
 from time_deconv.stats_helpers import *
+from time_deconv.hypercluster import *
 
 # Indices:
 
@@ -49,16 +50,27 @@ class DeconvolutionDataset:
         dtype: torch.dtype,
         device: torch.device,
         feature_selection_method: str = "common",
+        hypercluster=False,
+        hypercluster_params={
+            "min_new_cluster_size": 100,
+            "min_cells_recluster": 1000,
+            "return_anndata": False,
+            "subcluster_resolution": 1,
+            "type": "louvain",
+            "do_preproc": True,
+            "verbose": True,
+        },
     ):
 
         self.sc_celltype_col = sc_celltype_col
-
         self.bul_time_col = bulk_time_col
         self.dtype_np = dtype_np
         self.dtype = dtype
         self.device = device
-
         self.selected_genes = ()
+
+        ## Hypercluster related
+        self.is_hyperclustered = False
 
         # Select common genes and subset/order anndata objects
         # TODO: Issue warning if too many genes removed
@@ -68,9 +80,25 @@ class DeconvolutionDataset:
 
         self.num_genes = len(selected_genes)
 
-        # Subset the AnnData objects
+        # Subset the single cell AnnData object
         self.sc_anndata = sc_anndata[:, selected_genes]
+
+        # Subset the bulk object
         self.bulk_anndata = bulk_anndata[:, selected_genes]
+
+        # Perform hyper clustering
+        if hypercluster:
+            self.is_hyperclustered = True
+            self.hypercluster_results = hypercluster_anndata(
+                anndata_obj=sc_anndata,
+                original_clustering_name=sc_celltype_col,
+                **hypercluster_params,
+            )
+
+            self.sc_anndata.obs = self.sc_anndata.obs.join(
+                self.hypercluster_results["new_clusters"]
+            )
+            self.sc_celltype_col = "hypercluster"
 
         # Pre-process time values and save inverse function
         self.dpi_time_original_m = self.bulk_anndata.obs[bulk_time_col].values.astype(
@@ -159,7 +187,11 @@ class DeconvolutionDataset:
         # return sorted(list(set(self.sc_anndata.obs[self.sc_celltype_col])))
         # Nan safe version
         return sorted(
-            list(x for x in set(self.sc_anndata.obs["hypercluster"]) if str(x) != "nan")
+            list(
+                x
+                for x in set(self.sc_anndata.obs[self.sc_celltype_col])
+                if str(x) != "nan"
+            )
         )
 
     @cachedproperty
@@ -614,9 +646,7 @@ class TimeRegularizedDeconvolution:
 
         return ax
 
-    def calculate_composition_trajectories(
-        self, n_intervals=100, return_vals=False, cluster_map=None
-    ):
+    def calculate_composition_trajectories(self, n_intervals=100, return_vals=False):
         """Calculate the composition trajectories"""
         # calculate true times
         if self.basis_functions == "polynomial":
@@ -683,9 +713,12 @@ class TimeRegularizedDeconvolution:
             true_times_z = (
                 (times_z + 1) / 2
             ) * self.dataset.time_range + self.dataset.time_min
-        summarized_composition_rt = None
+
         norm_comp_ct_torch = torch.Tensor(norm_comp_tc).T
-        if cluster_map is not None:
+        summarized_composition_rt = None
+        toplevel_cell_map = None
+        if self.dataset.is_hyperclustered:
+            cluster_map = self.dataset.hypercluster_results["cluster_map"]
             toplevel_cell_map = {
                 ct: i for i, ct in enumerate({cluster_map[k] for k in cluster_map})
             }
@@ -702,12 +735,15 @@ class TimeRegularizedDeconvolution:
                         c_index,
                     ]
                 )
+
         self.calculated_trajectories = {
             "times_z": times_z.numpy(),
             "true_times_z": true_times_z,
-            "norm_comp_tc": norm_comp_tc,
-            "summarized_composition_rt": summarized_composition_rt,
+            "norm_comp_tc": norm_comp_tc,  # These are the trajectories on the native clusters
+            "summarized_composition_rt": summarized_composition_rt,  # These are the trajectories on the summarized results
+            "toplevel_cell_map": toplevel_cell_map,
         }
+
         if return_vals:
             return self.calculated_trajectories
 
@@ -717,14 +753,32 @@ class TimeRegularizedDeconvolution:
 
     def plot_composition_trajectories(self):
         """Plot the composition trajectories"""
-        fig, ax = matplotlib.pyplot.subplots()
-        ax.plot(
-            self.calculated_trajectories["true_times_z"],
-            self.calculated_trajectories["norm_comp_tc"],
-        )
-        ax.set_title("Predicted cell proportions")
-        ax.set_xlabel("Time")
-        ax.legend(self.dataset.cell_type_str_list, loc="best", fontsize="small")
+
+        if self.dataset.is_hyperclustered:
+            fig, ax = matplotlib.pyplot.subplots()
+            ax.plot(
+                self.calculated_trajectories["true_times_z"],
+                self.calculated_trajectories["summarized_composition_rt"].T,
+            )
+            ax.set_title("Predicted cell proportions")
+            ax.set_xlabel("Time")
+
+            labels = []
+
+            r = self.calculated_trajectories["toplevel_cell_map"]
+            map_r = {r[k]: k for k in r}
+            for i in range(len(map_r) - 1):
+                labels.append(map_r[i])
+            ax.legend(labels, loc="best", fontsize="small")
+        else:
+            fig, ax = matplotlib.pyplot.subplots()
+            ax.plot(
+                self.calculated_trajectories["true_times_z"],
+                self.calculated_trajectories["norm_comp_tc"],
+            )
+            ax.set_title("Predicted cell proportions")
+            ax.set_xlabel("Time")
+            ax.legend(self.dataset.cell_type_str_list, loc="best", fontsize="small")
 
     def plot_phi_g_distribution(self):
         """Plot the distribution of phi_g"""
