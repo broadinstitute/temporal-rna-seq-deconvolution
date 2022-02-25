@@ -751,10 +751,10 @@ class TimeRegularizedDeconvolution:
         """Return the composition trajectories"""
         return self.calculated_trajectories
 
-    def plot_composition_trajectories(self):
+    def plot_composition_trajectories(self, show_hypercluster = False):
         """Plot the composition trajectories"""
 
-        if self.dataset.is_hyperclustered:
+        if self.dataset.is_hyperclustered and not show_hypercluster:
             fig, ax = matplotlib.pyplot.subplots()
             ax.plot(
                 self.calculated_trajectories["true_times_z"],
