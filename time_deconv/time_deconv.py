@@ -805,6 +805,16 @@ class TimeRegularizedDeconvolution:
 
         :param figsize: tuple of size 2 with figure size information
         """
+        if self.dataset.is_hyperclustered:
+            self.plot_sample_compositions_scatter_hyperclustered(figsize=figsize)
+        else:
+            self.plot_sample_compositions_scatter_default(figsize=figsize)
+
+    def plot_sample_compositions_scatter_default(self, figsize):
+        """Plot a facetted scatter plot of the individual sample compositions for regular processing
+
+        :param figsize: tuple of size 2 with figure size information
+        """
         t_m = self.dataset.t_m.clone().detach().cpu()
         cell_pop = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
         sort_order = torch.argsort(self.dataset.t_m)
@@ -831,6 +841,14 @@ class TimeRegularizedDeconvolution:
         matplotlib.pyplot.tight_layout()
 
         return ax
+
+    def plot_sample_compositions_scatter_hyperclustered(self, figsize):
+        """Plot a facetted scatter plot of the individual sample compositions for hyperclustered processing
+
+        :param figsize: tuple of size 2 with figure size information
+        """
+        # Summarize pyro.param("cell_pop_posterior_loc_mc") to high level cell type and plot
+        pass
 
     def plot_sample_compositions_boxplot(self, figsize=(16, 9)):
         figsize = (16, 9)
