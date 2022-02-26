@@ -83,6 +83,8 @@ def hypercluster_anndata(
             ].index
         )
 
+        # Consider Gaussian Mixture (<<1 conc, min #clusters), K-means
+        # https://scikit-learn.org/stable/modules/generated/sklearn.mixture.GaussianMixture.html
         if type == "leiden":
             sc.tl.leiden(
                 ann_data_working,

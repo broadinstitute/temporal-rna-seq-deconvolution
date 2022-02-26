@@ -751,7 +751,7 @@ class TimeRegularizedDeconvolution:
         """Return the composition trajectories"""
         return self.calculated_trajectories
 
-    def plot_composition_trajectories(self, show_hypercluster = False):
+    def plot_composition_trajectories(self, show_hypercluster=False):
         """Plot the composition trajectories"""
 
         if self.dataset.is_hyperclustered and not show_hypercluster:
@@ -767,7 +767,7 @@ class TimeRegularizedDeconvolution:
 
             r = self.calculated_trajectories["toplevel_cell_map"]
             map_r = {r[k]: k for k in r}
-            for i in range(len(map_r) - 1):
+            for i in range(len(map_r)):
                 labels.append(map_r[i])
             ax.legend(labels, loc="best", fontsize="small")
         else:
@@ -847,7 +847,6 @@ class TimeRegularizedDeconvolution:
 
         :param figsize: tuple of size 2 with figure size information
         """
-        # Summarize pyro.param("cell_pop_posterior_loc_mc") to high level cell type and plot
         pass
 
     def plot_sample_compositions_boxplot(self, figsize=(16, 9)):
