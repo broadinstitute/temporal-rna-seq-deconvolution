@@ -45,12 +45,21 @@ def hypercluster_anndata(
     :param type: clustering algorithm to use 'leiden' or 'louvain'
     :param do_preproc: flag specifying if the anndata object should be preprocessed
     """
+    
+    # FIXME: original clusters can end up with no representation in the final dataset
+    
+    # TODO: Consider Gaussian Mixture (<<1 conc, min #clusters), K-means
+    # https://scikit-learn.org/stable/modules/generated/sklearn.mixture.GaussianMixture.html
 
+    # Optionally preprocess data
     if do_preproc:
         ann_data_working = preproc_anndata_hypercluster(anndata_obj)
     else:
         ann_data_working = anndata_obj.copy()
 
+    # Get the original cluster names
+    original_clusters = set(ann_data_working.obs[original_clustering_name])
+        
     # Identify which clusters to subcluster
     ct_counter = Counter(ann_data_working.obs[original_clustering_name])
     cell_types_identical = list(
@@ -60,11 +69,11 @@ def hypercluster_anndata(
         k for k in ct_counter if ct_counter[k] > min_cells_recluster
     )
 
-    # Dictionary for the new mapping
+    # Do reclustering
     new_cell_mapping = {}
-
     cluster_map = {}
-
+    
+    # Select clustering method
     if type == "leiden":
         restricted_name = "leiden_R"
     elif type == "louvain":
@@ -72,19 +81,22 @@ def hypercluster_anndata(
     else:
         raise Exception("Unknown clustering type")
 
+    new_clusters_keep = []
+    discarded_clusters = []
+    
     # Recluster other clusters
     for ct in cell_types_recluster:
         if verbose:
             print(f"Reclustering {ct}...")
 
+        # Get the names of the cells in this cluster
         original_cell_names = list(
             ann_data_working.obs.loc[
                 ann_data_working.obs[original_clustering_name] == ct
             ].index
         )
 
-        # Consider Gaussian Mixture (<<1 conc, min #clusters), K-means
-        # https://scikit-learn.org/stable/modules/generated/sklearn.mixture.GaussianMixture.html
+        # Perform clustering -- this gets saved in the ann_data_working under `restricted_name`
         if type == "leiden":
             sc.tl.leiden(
                 ann_data_working,
@@ -98,29 +110,36 @@ def hypercluster_anndata(
                 resolution=subcluster_resolution,
             )
 
-        new_cluster_names = set(
-            list(ann_data_working.obs.loc[original_cell_names][restricted_name])
-        )
+        # The names of the new sub-clusters (e.g. 'B,1')
+        new_cluster_names = set(list(ann_data_working.obs.loc[original_cell_names][restricted_name]))
+        
         if verbose:
             print(f"\t{len(new_cluster_names)} subclusters identified")
 
+    
         for nct in new_cluster_names:
+            # Get the cells in the new cluster
             cells_in_new_cluster = list(
                 ann_data_working.obs[ann_data_working.obs[restricted_name] == nct].index
             )
-            new_cell_mapping[nct] = cells_in_new_cluster
-
-            cluster_map[nct] = ct
-
+            if (len(cells_in_new_cluster) >= min_new_cluster_size ):
+            # Save names of the cells under new_cell_mapping
+                new_cell_mapping[nct] = cells_in_new_cluster
+                cluster_map[nct] = ct
+                new_clusters_keep.append(nct)
+            else:
+                discarded_clusters.append(nct)
+                
     # Keep new clusters only over a specified size
-    new_clusters_keep = list(
-        k for k in new_cell_mapping if len(new_cell_mapping[k]) >= min_new_cluster_size
-    )
-    discarded_clusters = list(
-        k for k in new_cell_mapping if len(new_cell_mapping[k]) < min_new_cluster_size
-    )
-
-    # Copy clusters that are too small without reclustering
+    #new_clusters_keep = list(k for k in new_cell_mapping if len(new_cell_mapping[k]) >= min_new_cluster_size)
+    #discarded_clusters = list(k for k in new_cell_mapping if len(new_cell_mapping[k]) < min_new_cluster_size)
+    
+    #{cluster_map[k] for k in cluster_map}
+    
+    # Copy clusters that are too small or did not map to new cell types without reclustering
+    #cell_types_identical = list(set(cell_types_identical).union(set(('Plasmablast', 'cDC', 'pDC'))))
+    #print(f'cell_types_identical: {cell_types_identical}')
+    
     for ct in cell_types_identical:
         if verbose:
             print(f"Keeping {ct}...")
@@ -129,27 +148,24 @@ def hypercluster_anndata(
             ann_data_working.obs[original_clustering_name].index[sel]
         )
         new_cell_mapping[ct] = cells_in_celltype
-
+        # Add 1->1 mapping to the cell map
         cluster_map[ct] = ct
-
     if verbose:
         print(
             f"Keeping {len(new_clusters_keep)}/{len(new_clusters_keep) + len(discarded_clusters)} clusters"
         )
 
-    # Generate dataframe for the new clusters
+    # Generate dataframe with cell name as index and new hypercluster as the only column
     cell_id_column_name = "cell_name"
     hypercluster_columns_name = "hypercluster"
-
     cn_new = []
     cluster_new = []
-
-    for cl_keep in new_clusters_keep:
+    for cl_keep in list(set(new_clusters_keep).union(cell_types_identical)):
         new_cluster_dict = new_cell_mapping[cl_keep]
         for cn in new_cluster_dict:
             cn_new.append(cn)
-            cluster_new.append(cl_keep)
-
+            cluster_new.append(cl_keep)  
+        cluster_map[cl_keep] = cluster_map[cl_keep]
     new_cluster_df = pd.DataFrame(
         {
             cell_id_column_name: cn_new,
@@ -157,8 +173,7 @@ def hypercluster_anndata(
         }
     ).set_index(cell_id_column_name)
 
-    # TODO: (Optional) trim cluster_map to only contain clusters retained
-
+    # Return results
     if return_anndata:
         ann_data_working.obs = ann_data_working.obs.join(new_cluster_df)
         return {
