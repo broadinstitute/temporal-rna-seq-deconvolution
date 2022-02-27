@@ -6,7 +6,7 @@ import torch
 import pyro
 from pyro.infer import SVI, Trace_ELBO
 from typing import List, Dict
-from boltons.cacheutils import cachedproperty
+#from boltons.cacheutils import cachedproperty
 import pyro.distributions as dist
 import anndata
 from sklearn.linear_model import Ridge
@@ -83,11 +83,13 @@ class DeconvolutionDataset:
         self.num_genes = len(selected_genes)
 
         # Subset the single cell AnnData object
-        self.sc_anndata = sc_anndata[:, sc_anndata.var.index.isin(selected_genes)]
+        #self.sc_anndata = sc_anndata[:, sc_anndata.var.index.isin(selected_genes)]
+        self.sc_anndata = sc_anndata[:, selected_genes]
 
         # Subset the bulk object
-        self.bulk_anndata = bulk_anndata[:, sc_anndata.var.index.isin(selected_genes)]
-
+        #self.bulk_anndata = bulk_anndata[:, sc_anndata.var.index.isin(selected_genes)]
+        self.bulk_anndata = bulk_anndata[:, selected_genes]
+        
         # Perform hyper clustering
         if hypercluster:
             self.is_hyperclustered = True
@@ -196,22 +198,22 @@ class DeconvolutionDataset:
             )
         )
 
-    @cachedproperty
+    @property
     def cell_type_str_to_index_map(self) -> Dict[str, int]:
         return {
             cell_type_str: index
             for index, cell_type_str in enumerate(self.cell_type_str_list)
         }
 
-    @cachedproperty
+    @property
     def num_cell_types(self) -> int:
         return len(self.cell_type_str_list)
 
-    @cachedproperty
+    @property
     def num_samples(self) -> int:
         return self.bulk_anndata.X.shape[0]
 
-    @cachedproperty
+    @property
     def w_hat_gc(self) -> np.ndarray:
         """Calculate the estimate cell profiles"""
         w_hat_gc = np.zeros((self.num_genes, self.num_cell_types))
@@ -224,11 +226,11 @@ class DeconvolutionDataset:
             )
         return w_hat_gc
 
-    @cachedproperty
+    @property
     def bulk_raw_gex_mg(self) -> torch.tensor:
         return torch.tensor(self.bulk_anndata.X, device=self.device, dtype=self.dtype)
 
-    @cachedproperty
+    @property
     def t_m(self) -> torch.tensor:
         return torch.tensor(self.dpi_time_m, device=self.device, dtype=self.dtype)
 
