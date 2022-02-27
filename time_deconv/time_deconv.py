@@ -832,9 +832,8 @@ class TimeRegularizedDeconvolution:
             r_i = int(i // n_rows)
             c_i = int(i % n_rows)
 
-            # TODO: Fix this 8 -- time scaling should come from dataset
             ax[c_i, r_i].scatter(
-                t_m[sort_order] * 8,
+                t_m[sort_order] * self.dataset.time_range + self.dataset.time_min,
                 cell_pop_mc[sort_order, i].clone().detach().cpu(),
                 color=cm.tab10(i),
             )
@@ -897,9 +896,8 @@ class TimeRegularizedDeconvolution:
             r_i = int(i // n_rows)
             c_i = int(i % n_rows)
 
-            # TODO: Fix this 8 -- time scaling should come from dataset
             ax[c_i, r_i].scatter(
-                t_m[sort_order] * 8,
+                t_m[sort_order] * self.dataset.time_range + self.dataset.time_min,
                 cell_pop_summarized_mk[sort_order, i].clone().detach().cpu(),
                 color=cm.tab10(i),
             )
@@ -920,7 +918,7 @@ class TimeRegularizedDeconvolution:
         n_cell_types = cell_pop.shape[1]
 
         n_rows = math.ceil(math.sqrt(n_cell_types))
-        n_cols = math.ceil(n_cell_types // n_rows)
+        n_cols = math.ceil(n_cell_types / n_rows)
 
         fig, ax = matplotlib.pyplot.subplots(n_rows, n_cols, figsize=figsize)
 
@@ -928,7 +926,7 @@ class TimeRegularizedDeconvolution:
             r_i = int(i // n_rows)
             c_i = int(i % n_rows)
 
-            t = t_m[sort_order] * 8
+            t = t_m[sort_order] * self.dataset.time_range + self.dataset.time_min
             prop = cell_pop[sort_order, i].clone().detach().cpu()
             labels = self.dataset.cell_type_str_list[i]
 
@@ -947,6 +945,7 @@ class TimeRegularizedDeconvolution:
         matplotlib.pyplot.tight_layout()
 
         return ax
+    
 
 
 def evaluate_model(params: dict, reference_deconvolution: TimeRegularizedDeconvolution):
