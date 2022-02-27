@@ -800,12 +800,14 @@ class TimeRegularizedDeconvolution:
 
         return ax
 
-    def plot_sample_compositions_scatter(self, figsize=(16, 9)):
+    def plot_sample_compositions_scatter(
+        self, figsize=(16, 9), ignore_hypercluster=False
+    ):
         """Plot a facetted scatter plot of the individual sample compositions
 
         :param figsize: tuple of size 2 with figure size information
         """
-        if self.dataset.is_hyperclustered:
+        if self.dataset.is_hyperclustered and not ignore_hypercluster:
             self.plot_sample_compositions_scatter_hyperclustered(figsize=figsize)
         else:
             self.plot_sample_compositions_scatter_default(figsize=figsize)
@@ -816,24 +818,24 @@ class TimeRegularizedDeconvolution:
         :param figsize: tuple of size 2 with figure size information
         """
         t_m = self.dataset.t_m.clone().detach().cpu()
-        cell_pop = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
+        cell_pop_mc = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
         sort_order = torch.argsort(self.dataset.t_m)
 
-        n_cell_types = cell_pop.shape[1]
+        n_cell_types = cell_pop_mc.shape[0]
 
         n_rows = math.ceil(math.sqrt(n_cell_types))
-        n_cols = math.ceil(n_cell_types // n_rows)
+        n_cols = math.ceil(n_cell_types / n_rows)
 
         fig, ax = matplotlib.pyplot.subplots(n_rows, n_cols, figsize=figsize)
 
-        for i in range(cell_pop.shape[1]):
+        for i in range(cell_pop_mc.shape[1]):
             r_i = int(i // n_rows)
             c_i = int(i % n_rows)
 
             # TODO: Fix this 8 -- time scaling should come from dataset
             ax[c_i, r_i].scatter(
                 t_m[sort_order] * 8,
-                cell_pop[sort_order, i].clone().detach().cpu(),
+                cell_pop_mc[sort_order, i].clone().detach().cpu(),
                 color=cm.tab10(i),
             )
             ax[c_i, r_i].set_title(self.dataset.cell_type_str_list[i])
