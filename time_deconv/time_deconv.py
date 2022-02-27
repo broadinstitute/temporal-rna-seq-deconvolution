@@ -182,7 +182,7 @@ class DeconvolutionDataset:
 
         return self.selected_genes
 
-    @cachedproperty
+    @property
     def cell_type_str_list(self) -> List[str]:
         # return sorted(list(set(self.sc_anndata.obs[self.sc_celltype_col])))
         # Nan safe version
@@ -849,7 +849,72 @@ class TimeRegularizedDeconvolution:
 
         :param figsize: tuple of size 2 with figure size information
         """
-        pass
+        
+        assert self.dataset.is_hyperclustered
+        
+        t_m = self.dataset.t_m.clone().detach().cpu()
+        cell_pop_mc = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
+        sort_order = torch.argsort(self.dataset.t_m)
+        
+        ## Summarise cell_pop_mc to the high-level clusters
+        n_top_level_clusters = len(set(self.dataset.hypercluster_results['cluster_map'].values()))
+        n_low_level_clusters = len(set(self.dataset.hypercluster_results['cluster_map'].keys()))
+        # k is index for  highlevel clusters
+        cell_pop_summarized_mk = torch.zeros((cell_pop_mc.shape[0], n_top_level_clusters))
+        
+        # Low level cluster names
+        low_cell_type_str_list = self.dataset.cell_type_str_list
+        toplevel_cell_map = self.calculated_trajectories["toplevel_cell_map"]
+        high_cell_type_str_list = list(toplevel_cell_map.keys())
+        low_to_high_clustermap = self.dataset.hypercluster_results['cluster_map']
+        
+        index = torch.zeros((n_low_level_clusters,), dtype = torch.int64)
+        
+        for i_llc in range(n_low_level_clusters):
+            llc_name = low_cell_type_str_list[i_llc]
+            hlc_name = low_to_high_clustermap[llc_name]
+            i_hlcc = high_cell_type_str_list.index(hlc_name)
+            index[i_llc] = i_hlcc
+
+        cell_pop_summarized_mk.index_add_(1, index, cell_pop_mc)
+        
+        print(f'cell_pop_summarized_mk shape: {cell_pop_summarized_mk.shape}')
+        
+        n_cell_types = cell_pop_summarized_mk.shape[1]
+
+        n_rows = math.ceil(math.sqrt(n_cell_types))
+        n_cols = math.ceil(n_cell_types / n_rows)
+
+        fig, ax = matplotlib.pyplot.subplots(n_rows, n_cols, figsize=figsize)
+
+        for i in range(cell_pop_summarized_mk.shape[1]):
+            r_i = int(i // n_rows)
+            c_i = int(i % n_rows)
+
+            # TODO: Fix this 8 -- time scaling should come from dataset
+            ax[c_i, r_i].scatter(
+                t_m[sort_order] * 8,
+                cell_pop_summarized_mk[sort_order, i].clone().detach().cpu(),
+                color=cm.tab10(i),
+            )
+            
+            ax[c_i, r_i].set_title(high_cell_type_str_list[i])
+
+        matplotlib.pyplot.tight_layout()
+
+        return ax
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
 
     def plot_sample_compositions_boxplot(self, figsize=(16, 9)):
         figsize = (16, 9)
