@@ -510,7 +510,7 @@ def calculate_trajectory_prediction_error(
     )
     ret_vals = pseudo_time_reg_deconv_sim.calculated_trajectories
 
-    predicted_composition_cm = ret_vals["norm_comp_t"]
+    predicted_composition_cm = ret_vals["norm_comp_tc"]
 
     # Calculate L1 and L2 losses
     L1_error = (

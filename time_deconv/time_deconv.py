@@ -77,14 +77,16 @@ class DeconvolutionDataset:
         selected_genes = self.__select_features(
             bulk_anndata, sc_anndata, feature_selection_method=feature_selection_method
         )
+        
+        print(f'type of selected_genes: {type(selected_genes)}')
 
         self.num_genes = len(selected_genes)
 
         # Subset the single cell AnnData object
-        self.sc_anndata = sc_anndata[:, selected_genes]
+        self.sc_anndata = sc_anndata[:, sc_anndata.var.index.isin(selected_genes)]
 
         # Subset the bulk object
-        self.bulk_anndata = bulk_anndata[:, selected_genes]
+        self.bulk_anndata = bulk_anndata[:, sc_anndata.var.index.isin(selected_genes)]
 
         # Perform hyper clustering
         if hypercluster:
@@ -821,7 +823,7 @@ class TimeRegularizedDeconvolution:
         cell_pop_mc = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
         sort_order = torch.argsort(self.dataset.t_m)
 
-        n_cell_types = cell_pop_mc.shape[0]
+        n_cell_types = cell_pop_mc.shape[1]
 
         n_rows = math.ceil(math.sqrt(n_cell_types))
         n_cols = math.ceil(n_cell_types / n_rows)
