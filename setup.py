@@ -40,7 +40,7 @@ setuptools.setup(
     packages=['ternadecov'],
     install_requires=install_requires,
     entry_points={
-        'console_scripts': ['ternadecov=time_deconvolution.base_cli:main'],
+        'console_scripts': ['ternadecov=ternadecov.base_cli:main'],
     },
     include_package_data=True,
     zip_safe=False
