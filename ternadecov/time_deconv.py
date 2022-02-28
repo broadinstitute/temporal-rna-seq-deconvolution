@@ -19,12 +19,13 @@ import pandas as pd
 import seaborn as sns
 import time
 import scanpy as sc
-from time_deconv.stats_helpers import *
-from time_deconv.time_deconv_simulator import *
-from time_deconv.stats_helpers import *
-from time_deconv.hypercluster import *
-from time_deconv.dataset import *
-from time_deconv.trajectories import *
+
+from ternadecov.stats_helpers import *
+from ternadecov.time_deconv_simulator import *
+from ternadecov.stats_helpers import *
+from ternadecov.hypercluster import *
+from ternadecov.dataset import *
+from ternadecov.trajectories import *
 
 # Indices:
 # - c cell type
@@ -319,7 +320,6 @@ class TimeRegularizedDeconvolution:
 
         if self.dataset.is_hyperclustered and not ignore_hypercluster:
             raise NotImplementedError
-            # self.write_sample_composition_hyperclustered(csv_filename)
         else:
             self.write_sample_composition_default(csv_filename)
 

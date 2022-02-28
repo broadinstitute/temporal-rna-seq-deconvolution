@@ -20,10 +20,11 @@ import seaborn as sns
 import time
 import scanpy as sc
 from functools import cached_property
-from time_deconv.stats_helpers import *
-from time_deconv.time_deconv_simulator import *
-from time_deconv.stats_helpers import *
-from time_deconv.hypercluster import *
+
+from ternadecov.stats_helpers import *
+from ternadecov.time_deconv_simulator import *
+from ternadecov.stats_helpers import *
+from ternadecov.hypercluster import *
 
 
 class DeconvolutionDataset:

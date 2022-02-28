@@ -19,13 +19,14 @@ import pandas as pd
 import seaborn as sns
 import time
 import scanpy as sc
-from time_deconv.stats_helpers import *
-from time_deconv.time_deconv_simulator import *
-from time_deconv.stats_helpers import *
-from time_deconv.hypercluster import *
-from time_deconv.dataset import *
-from time_deconv.trajectories import *
-from time_deconv.time_deconv import *
+
+from ternadecov.stats_helpers import *
+from ternadecov.time_deconv_simulator import *
+from ternadecov.stats_helpers import *
+from ternadecov.hypercluster import *
+from ternadecov.dataset import *
+from ternadecov.trajectories import *
+from ternadecov.time_deconv import *
 
 
 def evaluate_model(params: dict, reference_deconvolution: TimeRegularizedDeconvolution):

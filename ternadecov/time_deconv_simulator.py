@@ -1,4 +1,4 @@
-from time_deconv import *
+from ternadecov import *
 
 # import matplotlib.pylab as plt
 import matplotlib
@@ -8,7 +8,7 @@ import pyro
 import anndata
 import numpy as np
 
-from time_deconv.stats_helpers import *
+from ternadecov.stats_helpers import *
 import pandas as pd
 
 
