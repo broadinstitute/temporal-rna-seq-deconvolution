@@ -27,6 +27,7 @@ from time_deconv.dataset import *
 from time_deconv.trajectories import *
 from time_deconv.time_deconv import *
 
+
 def evaluate_model(params: dict, reference_deconvolution: TimeRegularizedDeconvolution):
     # TODO: Update to work with different proportion types
 
@@ -98,5 +99,3 @@ def evaluate_paramset(
         results.append(result)
 
     return results
-
-
