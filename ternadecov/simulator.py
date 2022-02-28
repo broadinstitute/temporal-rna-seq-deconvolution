@@ -66,9 +66,6 @@ def plot_simulated_proportions(
 
 
 def simulate_data(
-    #reference_deconvolution,
-    num_cell_types,
-    num_genes,
     w_hat_gc,
     start_time=-5,
     end_time=5,
@@ -101,7 +98,10 @@ def simulate_data(
 
     :return: dictionary of simulated values and underlying coefficients
     """
-
+    
+    num_genes = w_hat_gc.shape[0]
+    num_cell_types = w_hat_gc.shape[1]
+    
     # Sample the times
     t_m = torch.rand((num_samples,)) * (end_time - start_time) + start_time
 
