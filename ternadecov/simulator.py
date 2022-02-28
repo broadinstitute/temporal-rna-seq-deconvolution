@@ -75,7 +75,7 @@ def simulate_data(
     use_betas=False,
     dirichlet_alpha=1000,
     trajectory_type="sigmoid",
-    trajectory_coef=None, 
+    trajectory_coef=None,
     phi_mean=0.15,
     phi_std=0.05,
     beta_mean=1.0,
@@ -98,10 +98,10 @@ def simulate_data(
 
     :return: dictionary of simulated values and underlying coefficients
     """
-    
+
     num_genes = w_hat_gc.shape[0]
     num_cell_types = w_hat_gc.shape[1]
-    
+
     # Sample the times
     t_m = torch.rand((num_samples,)) * (end_time - start_time) + start_time
 
@@ -139,8 +139,22 @@ def simulate_data(
         raise Exception("Unkown Trajectory Type")
 
     cell_pop_cm = proportions_sample["cell_pop_cm"]
-    phi_g = torch.distributions.normal.Normal(loc = torch.full((num_genes,),phi_mean), scale = torch.full((num_genes,),phi_std)).sample().abs()
-    beta_g = torch.distributions.normal.Normal(loc = torch.full((num_genes,),beta_mean), scale = torch.full((num_genes,),beta_std)).sample().abs()
+    phi_g = (
+        torch.distributions.normal.Normal(
+            loc=torch.full((num_genes,), phi_mean),
+            scale=torch.full((num_genes,), phi_std),
+        )
+        .sample()
+        .abs()
+    )
+    beta_g = (
+        torch.distributions.normal.Normal(
+            loc=torch.full((num_genes,), beta_mean),
+            scale=torch.full((num_genes,), beta_std),
+        )
+        .sample()
+        .abs()
+    )
 
     # Get celltype profiles from the model
     if use_betas:
@@ -165,7 +179,7 @@ def simulate_data(
     # rate = concentration = a
     # 1/a = var of gamma distribution
     # sample beta_cg
-    
+
     mu_mg = lib_sizes_m[:, None] * torch.matmul(cell_pop_cm.T, w_gc.transpose(-1, -2))
 
     # Sample a full matrix using phis from main model

@@ -26,9 +26,10 @@ from ternadecov.simulator import *
 from ternadecov.stats_helpers import *
 from ternadecov.hypercluster import *
 
+
 class SingleCellDataset:
     """A reduced dataset with only single-cell data for use with simulator"""
-    
+
     def __init__(
         self,
         sc_anndata: anndata.AnnData,
@@ -38,13 +39,13 @@ class SingleCellDataset:
         device: torch.device,
     ):
         self.num_genes = sc_anndata.X.shape[0]
-        self.num_cells =  sc_anndata.X.shape[1]
+        self.num_cells = sc_anndata.X.shape[1]
         self.sc_celltype_col = sc_celltype_col
         self.dtype_np = dtype_np
         self.dtype = dtype
         self.device = device
         self.sc_anndata = sc_anndata
-        
+
     @cached_property
     def cell_type_str_list(self) -> List[str]:
         # return sorted(list(set(self.sc_anndata.obs[self.sc_celltype_col])))
@@ -56,7 +57,7 @@ class SingleCellDataset:
                 if str(x) != "nan"
             )
         )
-    
+
     @cached_property
     def w_hat_gc(self) -> np.ndarray:
         """Calculate the estimate cell profiles"""
@@ -69,11 +70,11 @@ class SingleCellDataset:
                 w_hat_gc[:, i_cell_type]
             )
         return w_hat_gc
-    
+
     @cached_property
     def num_cell_types(self) -> int:
         return len(self.cell_type_str_list)
-    
+
     @cached_property
     def cell_type_str_to_index_map(self) -> Dict[str, int]:
         return {
