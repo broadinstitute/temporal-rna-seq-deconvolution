@@ -19,6 +19,7 @@ import pandas as pd
 import seaborn as sns
 import time
 import scanpy as sc
+from functools import cached_property
 from time_deconv.stats_helpers import *
 from time_deconv.time_deconv_simulator import *
 from time_deconv.stats_helpers import *
@@ -174,7 +175,7 @@ class DeconvolutionDataset:
 
         return self.selected_genes
 
-    @property
+    @cached_property
     def cell_type_str_list(self) -> List[str]:
         # return sorted(list(set(self.sc_anndata.obs[self.sc_celltype_col])))
         # Nan safe version
@@ -186,22 +187,22 @@ class DeconvolutionDataset:
             )
         )
 
-    @property
+    @cached_property
     def cell_type_str_to_index_map(self) -> Dict[str, int]:
         return {
             cell_type_str: index
             for index, cell_type_str in enumerate(self.cell_type_str_list)
         }
 
-    @property
+    @cached_property
     def num_cell_types(self) -> int:
         return len(self.cell_type_str_list)
 
-    @property
+    @cached_property
     def num_samples(self) -> int:
         return self.bulk_anndata.X.shape[0]
 
-    @property
+    @cached_property
     def w_hat_gc(self) -> np.ndarray:
         """Calculate the estimate cell profiles"""
         w_hat_gc = np.zeros((self.num_genes, self.num_cell_types))
@@ -214,10 +215,14 @@ class DeconvolutionDataset:
             )
         return w_hat_gc
 
-    @property
+    @cached_property
     def bulk_raw_gex_mg(self) -> torch.tensor:
         return torch.tensor(self.bulk_anndata.X, device=self.device, dtype=self.dtype)
 
-    @property
+    @cached_property
     def t_m(self) -> torch.tensor:
         return torch.tensor(self.dpi_time_m, device=self.device, dtype=self.dtype)
+
+    @cached_property
+    def bulk_sample_names(self) -> list[str]:
+        return list(self.bulk_anndata.obs.index)
