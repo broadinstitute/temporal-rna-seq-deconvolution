@@ -54,6 +54,8 @@ def do_deconvolution(args):
         hypercluster=args.hypercluster,
     )
 
+    if args.verbose:
+        print("Running deconvolution...")
     deconvolution = TimeRegularizedDeconvolution(
         dataset=dataset,
         polynomial_degree=args.polynomial_degree,
@@ -61,9 +63,10 @@ def do_deconvolution(args):
         device=device,
         dtype=dtype,
     )
-
     deconvolution.fit_model(
         n_iters=args.iterations, verbose=args.verbose, log_frequency=args.log_frequency
     )
 
+    if args.verbose:
+        print("Saving results...")
     deconvolution.write_sample_compositions(args.sample_output_csv)
