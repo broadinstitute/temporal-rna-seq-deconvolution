@@ -394,9 +394,7 @@ def sample_sigmoid_proportions(
     """
     if trajectory_coefficients is None:
         trajectory_coefficients = sample_sigmoid_trajectories(
-            num_cell_types=num_cell_types,
-            seed=seed,
-            **trajectory_sample_params,
+            num_cell_types=num_cell_types, seed=seed, **trajectory_sample_params,
         )
 
     effect_size = trajectory_coefficients["effect_size"]
@@ -505,10 +503,12 @@ def calculate_trajectory_prediction_error(
         )
 
     # Get the predictions
-    pseudo_time_reg_deconv_sim.calculate_composition_trajectories(
-        n_intervals=n_intervals
+    pseudo_time_reg_deconv_sim.population_proportion_model.calculate_composition_trajectories(
+        dataset=pseudo_time_reg_deconv_sim.dataset, n_intervals=n_intervals
     )
-    ret_vals = pseudo_time_reg_deconv_sim.calculated_trajectories
+    ret_vals = (
+        pseudo_time_reg_deconv_sim.population_proportion_model.calculated_trajectories
+    )
 
     predicted_composition_cm = ret_vals["norm_comp_tc"]
 

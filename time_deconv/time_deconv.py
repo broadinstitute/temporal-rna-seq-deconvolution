@@ -6,13 +6,11 @@ import torch
 import pyro
 from pyro.infer import SVI, Trace_ELBO
 from typing import List, Dict
-#from boltons.cacheutils import cachedproperty
 import pyro.distributions as dist
 import anndata
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
-
 import math
 import tqdm
 import copy
@@ -21,218 +19,18 @@ import pandas as pd
 import seaborn as sns
 import time
 import scanpy as sc
-
 from time_deconv.stats_helpers import *
-
-
 from time_deconv.time_deconv_simulator import *
 from time_deconv.stats_helpers import *
 from time_deconv.hypercluster import *
+from time_deconv.dataset import *
+from time_deconv.trajectories import *
 
 # Indices:
-
 # - c cell type
 # - g genes
 # - m samples
 # - k deformation polynomial degree
-
-
-class DeconvolutionDataset:
-    """This class represents a bulk and single-cell dataset to be deconvolved in tandem"""
-
-    def __init__(
-        self,
-        sc_anndata: anndata.AnnData,
-        sc_celltype_col: str,
-        bulk_anndata: anndata.AnnData,
-        bulk_time_col: str,
-        dtype_np: np.dtype,
-        dtype: torch.dtype,
-        device: torch.device,
-        feature_selection_method: str = "common",
-        hypercluster=False,
-        hypercluster_params={
-            "min_new_cluster_size": 100,
-            "min_cells_recluster": 1000,
-            "return_anndata": False,
-            "subcluster_resolution": 1,
-            "type": "louvain",
-            "do_preproc": True,
-            "verbose": True,
-        },
-    ):
-
-        self.sc_celltype_col = sc_celltype_col
-        self.bul_time_col = bulk_time_col
-        self.dtype_np = dtype_np
-        self.dtype = dtype
-        self.device = device
-        self.selected_genes = ()
-
-        ## Hypercluster related
-        self.is_hyperclustered = False
-
-        # Select common genes and subset/order anndata objects
-        # TODO: Issue warning if too many genes removed
-        selected_genes = self.__select_features(
-            bulk_anndata, sc_anndata, feature_selection_method=feature_selection_method
-        )
-        
-        print(f'type of selected_genes: {type(selected_genes)}')
-
-        self.num_genes = len(selected_genes)
-
-        # Subset the single cell AnnData object
-        #self.sc_anndata = sc_anndata[:, sc_anndata.var.index.isin(selected_genes)]
-        self.sc_anndata = sc_anndata[:, selected_genes]
-
-        # Subset the bulk object
-        #self.bulk_anndata = bulk_anndata[:, sc_anndata.var.index.isin(selected_genes)]
-        self.bulk_anndata = bulk_anndata[:, selected_genes]
-        
-        # Perform hyper clustering
-        if hypercluster:
-            self.is_hyperclustered = True
-            self.hypercluster_results = hypercluster_anndata(
-                anndata_obj=sc_anndata,
-                original_clustering_name=sc_celltype_col,
-                **hypercluster_params,
-            )
-
-            self.sc_anndata.obs = self.sc_anndata.obs.join(
-                self.hypercluster_results["new_clusters"]
-            )
-            self.sc_celltype_col = "hypercluster"
-
-        # Pre-process time values and save inverse function
-        self.dpi_time_original_m = self.bulk_anndata.obs[bulk_time_col].values.astype(
-            dtype_np
-        )
-        self.time_min = np.min(self.dpi_time_original_m)
-        self.time_range = np.max(self.dpi_time_original_m) - self.time_min
-        self.dpi_time_m = (self.dpi_time_original_m - self.time_min) / self.time_range
-
-    def __select_features(
-        self, bulk_anndata, sc_anndata, feature_selection_method, dispersion_cutoff=5
-    ):
-
-        if feature_selection_method == "common":
-            self.selected_genes = list(
-                set(bulk_anndata.var.index).intersection(set(sc_anndata.var.index))
-            )
-        elif feature_selection_method == "overdispersed_bulk":
-            x_train = np.log(bulk_anndata.X.mean(0) + 1)  # log_mu_g
-            y_train = np.log(bulk_anndata.X.var(0) + 1)  # log_sigma_g
-
-            X_train = x_train[:, np.newaxis]
-            degree = 3
-            model = make_pipeline(PolynomialFeatures(degree), Ridge(alpha=1e-3))
-            model.fit(X_train, y_train)
-            y_pred = model.predict(X_train)
-
-            # Select Genes
-            sel_over = (y_train - y_pred > 0.0) & (y_train > dispersion_cutoff)
-            self.selected_genes = list(bulk_anndata.var.index[sel_over])
-
-        elif feature_selection_method == "overdispersed_bulk_and_high_sc":
-            # Fit polynomial degree
-            polynomial_degree = 2
-            sc_cutoff = 2  # log scale
-
-            # Select overdispersed in bulk
-            x_train = np.log(bulk_anndata.X.mean(0) + 1)  # log_mu_g
-            y_train = np.log(bulk_anndata.X.var(0) + 1)  # log_sigma_g
-
-            X_train = x_train[:, np.newaxis]
-
-            model = make_pipeline(
-                PolynomialFeatures(polynomial_degree), Ridge(alpha=1e-3)
-            )
-            model.fit(X_train, y_train)
-            y_pred = model.predict(X_train)
-
-            # Select Genes
-            sel_over_bulk = (y_train - y_pred > 0.0) & (y_train > dispersion_cutoff)
-            selected_genes_bulk = set(bulk_anndata.var.index[sel_over_bulk])
-
-            # Select highly-expressed in single-cell
-
-            selected_genes_sc = set(
-                sc_anndata.var.index[np.log(sc_anndata.X.sum(0) + 1) > sc_cutoff]
-            )
-
-            self.selected_genes = list(
-                selected_genes_bulk.intersection(selected_genes_sc)
-            )
-        elif feature_selection_method == "single_cell_od":
-            ann_data_working = sc_anndata.copy()
-
-            sc.pp.filter_cells(ann_data_working, min_genes=200)
-            sc.pp.filter_genes(ann_data_working, min_cells=3)
-            sc.pp.normalize_total(ann_data_working, target_sum=1e4)
-            sc.pp.log1p(ann_data_working)
-            sc.pp.highly_variable_genes(
-                ann_data_working, min_mean=0.0125, max_mean=3, min_disp=0.5
-            )
-            selected_genes_sc = set(
-                ann_data_working.var.highly_variable.index[
-                    ann_data_working.var.highly_variable
-                ]
-            )
-
-            self.selected_genes = list(
-                selected_genes_sc.intersection(set(list(bulk_anndata.var.index)))
-            )
-
-        return self.selected_genes
-
-    @property
-    def cell_type_str_list(self) -> List[str]:
-        # return sorted(list(set(self.sc_anndata.obs[self.sc_celltype_col])))
-        # Nan safe version
-        return sorted(
-            list(
-                x
-                for x in set(self.sc_anndata.obs[self.sc_celltype_col])
-                if str(x) != "nan"
-            )
-        )
-
-    @property
-    def cell_type_str_to_index_map(self) -> Dict[str, int]:
-        return {
-            cell_type_str: index
-            for index, cell_type_str in enumerate(self.cell_type_str_list)
-        }
-
-    @property
-    def num_cell_types(self) -> int:
-        return len(self.cell_type_str_list)
-
-    @property
-    def num_samples(self) -> int:
-        return self.bulk_anndata.X.shape[0]
-
-    @property
-    def w_hat_gc(self) -> np.ndarray:
-        """Calculate the estimate cell profiles"""
-        w_hat_gc = np.zeros((self.num_genes, self.num_cell_types))
-        for cell_type_str in self.cell_type_str_list:
-            i_cell_type = self.cell_type_str_to_index_map[cell_type_str]
-            mask_j = self.sc_anndata.obs[self.sc_celltype_col].values == cell_type_str
-            w_hat_gc[:, i_cell_type] = np.sum(self.sc_anndata.X[mask_j, :], axis=-2)
-            w_hat_gc[:, i_cell_type] = w_hat_gc[:, i_cell_type] / np.sum(
-                w_hat_gc[:, i_cell_type]
-            )
-        return w_hat_gc
-
-    @property
-    def bulk_raw_gex_mg(self) -> torch.tensor:
-        return torch.tensor(self.bulk_anndata.X, device=self.device, dtype=self.dtype)
-
-    @property
-    def t_m(self) -> torch.tensor:
-        return torch.tensor(self.dpi_time_m, device=self.device, dtype=self.dtype)
 
 
 class TimeRegularizedDeconvolution:
@@ -249,9 +47,9 @@ class TimeRegularizedDeconvolution:
         self.dataset = dataset
         self.device = device
         self.dtype = dtype
-        self.polynomial_degree = polynomial_degree
-        self.basis_functions = basis_functions
         self.use_betas = use_betas
+
+        self.init_posterior_global_scale_factor = 0.05
 
         # hyperparameters
         self.log_beta_prior_scale = 1.0
@@ -260,64 +58,29 @@ class TimeRegularizedDeconvolution:
         self.log_phi_prior_loc = -5.0
         self.log_phi_prior_scale = 1.0
 
+        self.population_proportion_model = BasicTrajectoryModule(
+            basis_functions=basis_functions,
+            polynomial_degree=polynomial_degree,
+            num_cell_types=self.dataset.num_cell_types,
+            num_samples=self.dataset.num_samples,
+            init_posterior_global_scale_factor=self.init_posterior_global_scale_factor,
+            device=device,
+            dtype=dtype,
+        )
+
         #####################################################
         ## Prior
         #####################################################
 
-        self.unnorm_cell_pop_base_prior_loc_c = np.zeros((self.dataset.num_cell_types,))
-        self.unnorm_cell_pop_base_prior_scale_c = np.ones(
-            (self.dataset.num_cell_types,)
-        )
-
-        # dist of coefficients of population deformation polynomial
-        self.unnorm_cell_pop_deform_prior_loc_ck = np.zeros(
-            (self.dataset.num_cell_types, self.polynomial_degree)
-        )
-        self.unnorm_cell_pop_deform_prior_scale_ck = np.ones(
-            (self.dataset.num_cell_types, self.polynomial_degree)
-        )
-
-        # Per sample celltype proportions
-        self.cell_pop_prior_loc_cm = (
-            np.ones((self.dataset.num_cell_types, self.dataset.num_samples))
-            / self.dataset.num_cell_types
-        )
-
-        # Dirichlet_alpha prior
-        self.dirichlet_alpha_prior = np.ones((1,)) * 1e5
-
         #####################################################
         ## Posterior
         #####################################################
-        self.init_posterior_global_scale_factor = 0.05
 
         self.log_beta_posterior_scale = 1.0 * self.init_posterior_global_scale_factor
         self.log_r_posterior_scale = 1.0 * self.init_posterior_global_scale_factor
         self.tau_posterior_scale = 1.0 * self.init_posterior_global_scale_factor
         self.log_phi_posterior_loc = -5.0
         self.log_phi_posterior_scale = 0.1 * self.init_posterior_global_scale_factor
-
-        self.unnorm_cell_pop_base_posterior_loc_c = np.zeros(
-            (self.dataset.num_cell_types,)
-        )
-        self.unnorm_cell_pop_base_posterior_scale_c = (
-            self.init_posterior_global_scale_factor
-            * np.ones((self.dataset.num_cell_types,))
-        )
-
-        self.unnorm_cell_pop_deform_posterior_loc_ck = np.zeros(
-            (self.dataset.num_cell_types, self.polynomial_degree)
-        )
-        self.unnorm_cell_pop_deform_posterior_scale_ck = (
-            self.init_posterior_global_scale_factor
-            * np.ones((self.dataset.num_cell_types, self.polynomial_degree))
-        )
-
-        self.cell_pop_posterior_loc_mc = (
-            self.init_posterior_global_scale_factor
-            * np.ones((self.dataset.num_samples, self.dataset.num_cell_types))
-            / self.dataset.num_cell_types
-        )
 
         self.dirichlet_alpha_posterior = (
             self.init_posterior_global_scale_factor * np.ones((1,))
@@ -327,9 +90,7 @@ class TimeRegularizedDeconvolution:
         self.w_hat_gc = torch.tensor(self.dataset.w_hat_gc, device=device, dtype=dtype)
 
     def model(
-        self,
-        x_mg: torch.Tensor,
-        t_m: torch.Tensor,
+        self, x_mg: torch.Tensor, t_m: torch.Tensor,
     ):
         """Main model
 
@@ -368,66 +129,6 @@ class TimeRegularizedDeconvolution:
         )
         assert log_beta_g.shape == (self.dataset.num_genes,)
 
-        # sample unnorm_cell_pop_base_c
-        unnorm_cell_pop_base_c = pyro.sample(
-            "unnorm_cell_pop_base_c",
-            dist.Normal(
-                loc=torch.tensor(
-                    self.unnorm_cell_pop_base_prior_loc_c,
-                    device=self.device,
-                    dtype=self.dtype,
-                ),
-                scale=torch.tensor(
-                    self.unnorm_cell_pop_base_prior_scale_c,
-                    device=self.device,
-                    dtype=self.dtype,
-                ),
-            ).to_event(1),
-        )
-        assert unnorm_cell_pop_base_c.shape == (self.dataset.num_cell_types,)
-
-        # Deformation scale is a learnable parameter now
-        unnorm_cell_pop_deform_prior_scale_ck = pyro.param(
-            "unnorm_cell_pop_deform_prior_scale_ck",
-            torch.tensor(
-                self.unnorm_cell_pop_deform_prior_scale_ck,
-                device=self.device,
-                dtype=self.dtype,
-            ),
-            constraint=constraints.positive,
-        )
-        assert unnorm_cell_pop_deform_prior_scale_ck.shape == (
-            self.dataset.num_cell_types,
-            self.polynomial_degree,
-        )
-
-        unnorm_cell_pop_deform_ck = pyro.sample(
-            "unnorm_cell_pop_deform_ck",
-            dist.Normal(
-                loc=torch.tensor(
-                    self.unnorm_cell_pop_deform_prior_loc_ck,
-                    device=self.device,
-                    dtype=self.dtype,
-                ),
-                scale=unnorm_cell_pop_deform_prior_scale_ck,
-            ).to_event(2),
-        )
-        assert unnorm_cell_pop_deform_ck.shape == (
-            self.dataset.num_cell_types,
-            self.polynomial_degree,
-        )
-
-        dirichlet_alpha = pyro.param(
-            "dirichlet_alpha",
-            torch.tensor(
-                self.dirichlet_alpha_prior,
-                device=self.device,
-                dtype=self.dtype,
-            ),
-            constraint=constraints.positive,
-        )
-        assert dirichlet_alpha.shape == (1,)
-
         # calculate useful derived variables
         beta_g = log_beta_g.exp()
         phi_g = log_phi_g.exp()
@@ -440,55 +141,7 @@ class TimeRegularizedDeconvolution:
 
         w_gc = unnorm_w_gc / unnorm_w_gc.sum(0)
 
-        if self.basis_functions == "polynomial":
-            tau_km = torch.pow(
-                t_m[None, :],
-                torch.arange(1, self.polynomial_degree + 1, device=self.device)[
-                    :, None
-                ],
-            )
-            deformation_mc = torch.matmul(unnorm_cell_pop_deform_ck, tau_km).transpose(
-                -1, -2
-            )
-        elif self.basis_functions == "legendre":
-            # l -- power of the term of the legrenre polynomial
-            t_m_prime = 2 * t_m - 1  # discrete times in (-1,1)
-            t_lm = torch.pow(
-                t_m_prime[None, :],
-                torch.arange(0, self.polynomial_degree + 1, device=self.device)[
-                    :, None
-                ],
-            )
-            c_kl = legendre_coefficient_mat(self.polynomial_degree, dtype=dtype)[
-                1:,
-            ].to(
-                device
-            )  # drop constant term
-            intermediate_legenre_vals_km = torch.matmul(c_kl, t_lm)
-            deformation_mc = torch.matmul(
-                unnorm_cell_pop_deform_ck, intermediate_legenre_vals_km
-            ).transpose(-1, -2)
-
-        # The normalized underlying trajectories, serve as Dirichlet params
-        trajectory_mc = torch.nn.functional.softmax(
-            unnorm_cell_pop_base_c[None, :] + deformation_mc, dim=-1
-        )
-
-        per_sample_draw = True
-        if per_sample_draw:
-            # dirichlet_alpha = torch.tensor([1e4], device=self.device)
-            dirichlet_dist = dist.Dirichlet(
-                concentration=trajectory_mc * dirichlet_alpha
-            ).to_event(1)
-
-            cell_pop_mc = pyro.sample("cell_pop_mc", dirichlet_dist)
-        else:
-            cell_pop_mc = trajectory_mc
-
-        assert cell_pop_mc.shape == (
-            self.dataset.num_samples,
-            self.dataset.num_cell_types,
-        )
+        cell_pop_mc = self.population_proportion_model.model(t_m=t_m)
 
         # calculate mean gene expression
         mu_mg = x_mg.sum(-1)[:, None] * torch.matmul(
@@ -525,53 +178,6 @@ class TimeRegularizedDeconvolution:
             ),
         )
 
-        # variational parameters for unnorm_cell_pop_base_c ("B_c")
-        unnorm_cell_pop_base_posterior_loc_c = pyro.param(
-            "unnorm_cell_pop_base_posterior_loc_c",
-            torch.tensor(
-                self.unnorm_cell_pop_base_posterior_loc_c,
-                device=self.device,
-                dtype=self.dtype,
-            ),
-        )
-
-        # variational parameters for unnorm_cell_pop_deform_c ("R_c")
-        unnorm_cell_pop_deform_posterior_loc_ck = pyro.param(
-            "unnorm_cell_pop_deform_posterior_loc_ck",
-            torch.tensor(
-                self.unnorm_cell_pop_deform_posterior_loc_ck,
-                device=self.device,
-                dtype=self.dtype,
-            ),
-        )
-
-        # Cell composition
-        #         new_code = False
-        #         if new_code:
-        #              cell_pop_unconstrained_posterior_loc_mc = pyro.param(
-        #                 "cell_pop_unconstrained_posterior_loc_mc",
-        #                 torch.tensor(
-        #                     self.cell_pop_posterior_loc_mc,
-        #                     device=self.device,
-        #                     dtype=self.dtype,
-        #                 ),
-        #                 constraint=constraints.simplex,
-        #             )
-        #             epsilon = 1e-6
-        #             # This is on a simplex
-        #             cell_pop_posterior_loc_mc = epsilon / self.cell_pop_posterior_loc_mc.shape[-1] +
-        #                 (1-epsilon) * cell_pop_unconstrained_posterior_loc_mc
-        #         else:
-        cell_pop_posterior_loc_mc = pyro.param(
-            "cell_pop_posterior_loc_mc",
-            torch.tensor(
-                self.cell_pop_posterior_loc_mc,
-                device=self.device,
-                dtype=self.dtype,
-            ),
-            constraint=constraints.simplex,
-        )
-
         # posterior sample statements
         log_phi_g = pyro.sample(
             "log_phi_g", dist.Delta(v=log_phi_posterior_loc_g).to_event(1)
@@ -581,20 +187,7 @@ class TimeRegularizedDeconvolution:
             "log_beta_g", dist.Delta(v=log_beta_posterior_loc_g).to_event(1)
         )
 
-        unnorm_cell_pop_base_c = pyro.sample(
-            "unnorm_cell_pop_base_c",
-            dist.Delta(v=unnorm_cell_pop_base_posterior_loc_c).to_event(1),
-        )
-
-        unnorm_cell_pop_deform_ck = pyro.sample(
-            "unnorm_cell_pop_deform_ck",
-            dist.Delta(v=unnorm_cell_pop_deform_posterior_loc_ck).to_event(2),
-        )
-
-        cell_pop_mc = pyro.sample(
-            "cell_pop_mc",
-            dist.Delta(v=cell_pop_posterior_loc_mc).to_event(2),
-        )
+        self.population_proportion_model.guide()
 
     def fit_model(
         self,
@@ -651,109 +244,13 @@ class TimeRegularizedDeconvolution:
         return ax
 
     def calculate_composition_trajectories(self, n_intervals=100, return_vals=False):
-        """Calculate the composition trajectories"""
-        # calculate true times
-        if self.basis_functions == "polynomial":
-            time_step = 1 / n_intervals
-            times_z = torch.arange(0, 1, time_step)
-            # Take time to appropriate exponent
-            times_zk = torch.pow(
-                times_z[:, None],
-                torch.arange(
-                    1,
-                    self.polynomial_degree + 1,
-                ),
-            )
-            # get the trained params
-            base_composition_post_c = (
-                pyro.param("unnorm_cell_pop_base_posterior_loc_c").detach().cpu()
-            )
-            delta_composition_post_ck = (
-                pyro.param("unnorm_cell_pop_deform_posterior_loc_ck").detach().cpu()
-            )
-            # Calculate the deltas for each time point
-            delta_cz = torch.matmul(
-                delta_composition_post_ck, times_zk.transpose(-1, -2)
-            )
-            # normalize
-            norm_comp_tc = (
-                torch.nn.functional.softmax(
-                    base_composition_post_c[:, None] + delta_cz, dim=0
-                )
-                .numpy()
-                .T
-            )
-            true_times_z = times_z * self.dataset.time_range + self.dataset.time_min
-        elif self.basis_functions == "legendre":
-            time_step = 2 / n_intervals
-            times_z = torch.arange(-1, 1, time_step)
-            # Take time to appropriate exponent
-            times_zk = torch.pow(
-                times_z[:, None],
-                torch.arange(
-                    1,
-                    self.polynomial_degree + 1,
-                ),
-            )
-            # get the trained params
-            base_composition_post_c = (
-                pyro.param("unnorm_cell_pop_base_posterior_loc_c").detach().cpu()
-            )
-            delta_composition_post_ck = (
-                pyro.param("unnorm_cell_pop_deform_posterior_loc_ck").detach().cpu()
-            )
-            # Calculate the deltas for each time point
-            delta_cz = torch.matmul(
-                delta_composition_post_ck, times_zk.transpose(-1, -2)
-            )
-            # normalize
-            norm_comp_tc = (
-                torch.nn.functional.softmax(
-                    base_composition_post_c[:, None] + delta_cz, dim=0
-                )
-                .numpy()
-                .T
-            )
-            true_times_z = (
-                (times_z + 1) / 2
-            ) * self.dataset.time_range + self.dataset.time_min
-
-        norm_comp_ct_torch = torch.Tensor(norm_comp_tc).T
-        summarized_composition_rt = None
-        toplevel_cell_map = None
-        if self.dataset.is_hyperclustered:
-            cluster_map = self.dataset.hypercluster_results["cluster_map"]
-            toplevel_cell_map = {
-                ct: i for i, ct in enumerate({cluster_map[k] for k in cluster_map})
-            }
-            summarized_num_cells = len(toplevel_cell_map)
-            summarized_composition_rt = torch.zeros(
-                (summarized_num_cells, norm_comp_tc.shape[0])
-            )
-
-            for c_index in range(0, norm_comp_ct_torch.shape[0] - 1):
-                low_cluster_name = self.dataset.cell_type_str_list[c_index]
-                top_cluster_name = cluster_map[low_cluster_name]
-                summarized_composition_rt[toplevel_cell_map[top_cluster_name]].add_(
-                    norm_comp_ct_torch[
-                        c_index,
-                    ]
-                )
-
-        self.calculated_trajectories = {
-            "times_z": times_z.numpy(),
-            "true_times_z": true_times_z,
-            "norm_comp_tc": norm_comp_tc,  # These are the trajectories on the native clusters
-            "summarized_composition_rt": summarized_composition_rt,  # These are the trajectories on the summarized results
-            "toplevel_cell_map": toplevel_cell_map,
-        }
-
-        if return_vals:
-            return self.calculated_trajectories
+        self.population_proportion_model.calculate_composition_trajectories(
+            self.dataset, n_intervals=100, return_vals=False
+        )
 
     def get_composition_trajectories(self):
         """Return the composition trajectories"""
-        return self.calculated_trajectories
+        return self.population_proportion_model.calculated_trajectories
 
     def plot_composition_trajectories(self, show_hypercluster=False):
         """Plot the composition trajectories"""
@@ -777,8 +274,12 @@ class TimeRegularizedDeconvolution:
         else:
             fig, ax = matplotlib.pyplot.subplots()
             ax.plot(
-                self.calculated_trajectories["true_times_z"],
-                self.calculated_trajectories["norm_comp_tc"],
+                self.population_proportion_model.calculated_trajectories[
+                    "true_times_z"
+                ],
+                self.population_proportion_model.calculated_trajectories[
+                    "norm_comp_tc"
+                ],
             )
             ax.set_title("Predicted cell proportions")
             ax.set_xlabel("Time")
@@ -934,12 +435,7 @@ class TimeRegularizedDeconvolution:
             prop = cell_pop[sort_order, i].clone().detach().cpu()
             labels = self.dataset.cell_type_str_list[i]
 
-            df1 = pd.DataFrame(
-                {
-                    "time": t,
-                    "proportion": prop,
-                }
-            )
+            df1 = pd.DataFrame({"time": t, "proportion": prop,})
 
             sns.boxplot(
                 x="time", y="proportion", data=df1, ax=ax[c_i, r_i], color=cm.tab10(i)
@@ -949,7 +445,6 @@ class TimeRegularizedDeconvolution:
         matplotlib.pyplot.tight_layout()
 
         return ax
-    
 
 
 def evaluate_model(params: dict, reference_deconvolution: TimeRegularizedDeconvolution):
@@ -982,9 +477,7 @@ def evaluate_model(params: dict, reference_deconvolution: TimeRegularizedDeconvo
 
 def get_default_evaluation_param(device, dtype, dtype_np):
     default_param = {
-        "simulation_params": {
-            "num_samples": 100,
-        },
+        "simulation_params": {"num_samples": 100,},
         "deconvolution_dataset_params": {
             "sc_celltype_col": "Subclustering_reduced",
             "bulk_time_col": "time",
@@ -1000,11 +493,7 @@ def get_default_evaluation_param(device, dtype, dtype_np):
             "device": device,
             "dtype": dtype,
         },
-        "fit_params": {
-            "n_iters": 1000,
-            "verbose": False,
-            "log_frequency": 1000,
-        },
+        "fit_params": {"n_iters": 1000, "verbose": False, "log_frequency": 1000,},
     }
 
     return default_param
