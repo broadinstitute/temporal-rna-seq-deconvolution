@@ -21,7 +21,7 @@ import time
 import scanpy as sc
 
 from ternadecov.stats_helpers import *
-from ternadecov.time_deconv_simulator import *
+from ternadecov.simulator import *
 from ternadecov.stats_helpers import *
 from ternadecov.hypercluster import *
 from ternadecov.dataset import *
@@ -100,3 +100,104 @@ def evaluate_paramset(
         results.append(result)
 
     return results
+
+
+def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=1000):
+    """Calculate the prediction error of a deconvolution on simulated results
+    :param sim_res: results of a simulation
+    :param pseudo_time_reg_deconv_sim: the deconvolution object to evaluate
+    :n_intervals: number of intervals over which to evaluate the results
+    """
+
+    # TODO: Move to sim_res
+    start_time = -5
+    end_time = 5
+    step = (end_time - start_time) / n_intervals
+
+    t_m = torch.arange(start_time, end_time, step)
+    num_samples = t_m.shape[0]
+
+    ## Get the ground truth
+    if sim_res["trajectory_params"]["type"] == "sigmoid":
+        magnitude = sim_res["trajectory_params"]["magnitude"]
+        shift = sim_res["trajectory_params"]["shift"]
+        effect_size = sim_res["trajectory_params"]["effect_size"]
+        num_cell_types = sim_res["trajectory_params"]["effect_size"].shape[0]
+
+        cell_pop_cm = torch.zeros(num_cell_types, num_samples)
+        for i in range(num_cell_types):
+            cell_pop_cm[i, :] = (
+                torch.Tensor(list(sigmoid(magnitude[i] * x + shift[i]) for x in t_m))
+                * effect_size[i]
+            )
+        ground_truth_proportions_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0).T
+    elif sim_res["trajectory_params"]["type"] == "linear":
+        a = sim_res["trajectory_params"]["a"]
+        b = sim_res["trajectory_params"]["b"]
+        num_cell_types = sim_res["trajectory_params"]["trajectories_cm"].shape[0]
+
+        cell_pop_cm = torch.zeros(num_cell_types, num_samples)
+        for i in range(num_cell_types):
+            cell_pop_cm[i, :] = torch.Tensor(list(a[i] * x + b[i] for x in t_m))
+        ground_truth_proportions_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0).T
+    elif sim_res["trajectory_params"]["type"] == "periodic":
+        a = sim_res["trajectory_params"]["a"]
+        b = sim_res["trajectory_params"]["b"]
+        c = sim_res["trajectory_params"]["c"]
+        num_cell_types = sim_res["trajectory_params"]["trajectories_cm"].shape[0]
+
+        cell_pop_cm = torch.zeros(num_cell_types, num_samples)
+        for i in range(num_cell_types):
+            cell_pop_cm[i, :] = torch.Tensor(
+                list(a[i] * torch.sin(b[i] * x + c[i]) for x in t_m)
+            )
+        ground_truth_proportions_cm = torch.nn.functional.softmax(cell_pop_cm, dim=0).T
+    else:
+        raise Exception(
+            f'Unknown trajectory type { sim_res["trajectory_params"]["type"] }'
+        )
+
+    # Get the predictions
+    pseudo_time_reg_deconv_sim.calculate_composition_trajectories(
+        n_intervals=n_intervals
+    )
+    ret_vals = pseudo_time_reg_deconv_sim.calculated_trajectories
+
+    predicted_composition_cm = ret_vals["norm_comp_t"]
+
+    # Calculate L1 and L2 losses
+    L1_error = (
+        (ground_truth_proportions_cm - predicted_composition_cm).abs().sum([0, 1])
+    )
+    L1_error_norm = L1_error / n_intervals
+    L2_error = (
+        (ground_truth_proportions_cm - predicted_composition_cm)
+        .pow(2)
+        .sum([0, 1])
+        .sqrt()
+    )
+    L2_error_norm = L2_error / n_intervals
+
+    # Calculate L1 and L2 losses on the trajectory shapes
+
+    # Normalize by cell type summing to 1
+    ground_truth_proportions_norm_cm = (
+        ground_truth_proportions_cm / ground_truth_proportions_cm.sum(-2)
+    )
+    predicted_composition_norm_cm = (
+        predicted_composition_cm / predicted_composition_cm.sum(-2)
+    )
+
+    shape_L1_error = (
+        (ground_truth_proportions_norm_cm - predicted_composition_norm_cm)
+        .abs()
+        .sum([0, 1])
+    )
+
+    return {
+        "L1_error": L1_error,
+        "L1_error_norm": L1_error_norm,
+        "L2_error": L2_error,
+        "L2_error_norm": L2_error_norm,
+        "shape_L1_error": shape_L1_error,
+    }

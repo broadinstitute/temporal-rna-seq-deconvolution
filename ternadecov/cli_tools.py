@@ -2,7 +2,7 @@ import torch
 
 from ternadecov.time_deconv import *
 from ternadecov.stats_helpers import *
-from ternadecov.time_deconv_simulator import *
+from ternadecov.simulator import *
 from ternadecov.stats_helpers import *
 from ternadecov.hypercluster import *
 from ternadecov.dataset import *

@@ -22,7 +22,7 @@ import scanpy as sc
 from functools import cached_property
 
 from ternadecov.stats_helpers import *
-from ternadecov.time_deconv_simulator import *
+from ternadecov.simulator import *
 from ternadecov.stats_helpers import *
 from ternadecov.hypercluster import *
 
@@ -67,8 +67,6 @@ class DeconvolutionDataset:
         selected_genes = self.__select_features(
             bulk_anndata, sc_anndata, feature_selection_method=feature_selection_method
         )
-
-        print(f"type of selected_genes: {type(selected_genes)}")
 
         self.num_genes = len(selected_genes)
 

@@ -17,6 +17,7 @@ def get_argument_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="tool")
 
+    ######################################################
     # Deconvolution
     parser_deconvolve = subparsers.add_parser(
         "deconvolve", help="perform deconvolution"
@@ -56,6 +57,7 @@ def get_argument_parser() -> argparse.ArgumentParser:
         "--log-frequency", help="frequency of logging during fitting", default=1000
     )
 
+    ######################################################
     # Simulation
     parser_simulate = subparsers.add_parser("simulate", help="simulate dataset")
     parser_simulate.add_argument(
