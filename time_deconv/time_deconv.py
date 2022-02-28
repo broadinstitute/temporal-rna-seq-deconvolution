@@ -33,6 +33,16 @@ from time_deconv.trajectories import *
 # - k deformation polynomial degree
 
 
+def generate_batch(
+    dataset: DeconvolutionDataset, device: torch.device, dtype: torch.dtype
+):
+
+    return {
+        "x_mg": dataset.bulk_raw_gex_mg.clone().detach().to(device).type(dtype),
+        "t_m": torch.tensor(dataset.dpi_time_m, device=device, dtype=dtype),
+    }
+
+
 class TimeRegularizedDeconvolution:
     def __init__(
         self,
@@ -53,7 +63,6 @@ class TimeRegularizedDeconvolution:
 
         # hyperparameters
         self.log_beta_prior_scale = 1.0
-        self.log_r_prior_scale = 1.0
         self.tau_prior_scale = 1.0
         self.log_phi_prior_loc = -5.0
         self.log_phi_prior_scale = 1.0
@@ -77,7 +86,6 @@ class TimeRegularizedDeconvolution:
         #####################################################
 
         self.log_beta_posterior_scale = 1.0 * self.init_posterior_global_scale_factor
-        self.log_r_posterior_scale = 1.0 * self.init_posterior_global_scale_factor
         self.tau_posterior_scale = 1.0 * self.init_posterior_global_scale_factor
         self.log_phi_posterior_loc = -5.0
         self.log_phi_posterior_scale = 0.1 * self.init_posterior_global_scale_factor
@@ -297,6 +305,7 @@ class TimeRegularizedDeconvolution:
 
     def plot_beta_g_distribution(self):
         """Plot distribution of beta_g"""
+
         beta_g = pyro.param("log_beta_posterior_loc_g").clone().detach().exp().cpu()
         fig, ax = matplotlib.pyplot.subplots()
         ax.hist(beta_g.numpy(), bins=100)
@@ -304,6 +313,44 @@ class TimeRegularizedDeconvolution:
         ax.set_ylabel("Counts")
 
         return ax
+
+    def write_sample_compositions(self, csv_filename, ignore_hypercluster=False):
+        """Write sample composition to csv file"""
+
+        if self.dataset.is_hyperclustered and not ignore_hypercluster:
+            raise NotImplementedError
+            # self.write_sample_composition_hyperclustered(csv_filename)
+        else:
+            self.write_sample_composition_default(csv_filename)
+
+    def sample_composition_default(self):
+        """Return the sample composition in a pandas DataFrame"""
+
+        cell_pop_mc = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
+        col_sample = []
+        col_celltype = []
+        col_proportion = []
+        for i_0 in range(cell_pop_mc.shape[0]):
+            for i_1 in range(cell_pop_mc.shape[1]):
+                col_sample.append(self.dataset.bulk_sample_names[i_0])
+                col_celltype.append(self.dataset.cell_type_str_list[i_1])
+                col_proportion.append(cell_pop_mc[i_0, i_1].item())
+        return pd.DataFrame(
+            {
+                "col_sample": col_sample,
+                "col_celltype": col_celltype,
+                "col_proportion": col_proportion,
+            }
+        )
+
+    def write_sample_composition_default(self, csv_filename):
+        """Write sample composition proportions to csv file
+        
+        :param csv_filename: filename of csv file to write to
+        """
+
+        composition_df = self.sample_composition_default()
+        composition_df.to_csv(csv_filename)
 
     def plot_sample_compositions_scatter(
         self, figsize=(16, 9), ignore_hypercluster=False
@@ -445,86 +492,3 @@ class TimeRegularizedDeconvolution:
         matplotlib.pyplot.tight_layout()
 
         return ax
-
-
-def evaluate_model(params: dict, reference_deconvolution: TimeRegularizedDeconvolution):
-    # TODO: Update to work with different proportion types
-
-    sim_res = simulate_with_sigmoid_proportions(
-        **params["simulation_params"], reference_deconvolution=reference_deconvolution
-    )
-
-    simulated_bulk = generate_anndata_from_sim(
-        sim_res=sim_res, reference_deconvolution=reference_deconvolution
-    )
-
-    simulated_dataset = DeconvolutionDataset(
-        bulk_anndata=simulated_bulk, **params["deconvolution_dataset_params"]
-    )
-
-    simulated_deconvolution = TimeRegularizedDeconvolution(
-        dataset=simulated_dataset, **params["deconvolution_params"]
-    )
-
-    simulated_deconvolution.fit_model(**params["fit_params"])
-
-    error = calculate_prediction_error(
-        sim_res, simulated_deconvolution, n_intervals=100
-    )
-
-    return error
-
-
-def get_default_evaluation_param(device, dtype, dtype_np):
-    default_param = {
-        "simulation_params": {"num_samples": 100,},
-        "deconvolution_dataset_params": {
-            "sc_celltype_col": "Subclustering_reduced",
-            "bulk_time_col": "time",
-            "dtype_np": dtype_np,
-            "dtype": dtype,
-            "device": device,
-            "feature_selection_method": "common",
-        },
-        "deconvolution_params": {
-            "polynomial_degree": 5,
-            "basis_functions": "polynomial",
-            "use_betas": True,
-            "device": device,
-            "dtype": dtype,
-        },
-        "fit_params": {"n_iters": 1000, "verbose": False, "log_frequency": 1000,},
-    }
-
-    return default_param
-
-
-def evaluate_paramset(
-    param_set, sc_anndata, reference_deconvolution, show_progress=True
-):
-    if show_progress:
-        progress_bar = tqdm.tqdm
-    else:
-        progress_bar = lambda x: x
-
-    results = []
-    for evaluation_param in progress_bar(param_set):
-        evaluation_param_copy = copy.deepcopy(evaluation_param)
-        evaluation_param_copy["deconvolution_dataset_params"]["sc_anndata"] = sc_anndata
-        error = evaluate_model(
-            evaluation_param_copy, reference_deconvolution=reference_deconvolution
-        )
-        result = {"param": evaluation_param, "error": error}
-        results.append(result)
-
-    return results
-
-
-def generate_batch(
-    dataset: DeconvolutionDataset, device: torch.device, dtype: torch.dtype
-):
-
-    return {
-        "x_mg": dataset.bulk_raw_gex_mg.clone().detach().to(device).type(dtype),
-        "t_m": torch.tensor(dataset.dpi_time_m, device=device, dtype=dtype),
-    }
