@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import matplotlib
 import matplotlib.pyplot
@@ -19,7 +20,14 @@ import pandas as pd
 import seaborn as sns
 import time
 import scanpy as sc
-from functools import cached_property
+
+# fixme
+if False:
+    from functools import cached_property
+else:
+    from boltons.cacheutils import cachedproperty as cached_property
+
+from typing import List
 
 from ternadecov.stats_helpers import *
 from ternadecov.simulator import *
@@ -279,5 +287,5 @@ class DeconvolutionDataset:
         return torch.tensor(self.dpi_time_m, device=self.device, dtype=self.dtype)
 
     @cached_property
-    def bulk_sample_names(self) -> list[str]:
+    def bulk_sample_names(self) -> List[str]:
         return list(self.bulk_anndata.obs.index)
