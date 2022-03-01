@@ -43,16 +43,17 @@ def generate_batch(
         "t_m": torch.tensor(dataset.dpi_time_m, device=device, dtype=dtype),
     }
 
+_TRAJECTORY_MODEL_TYPES = {'polynomial', 'gp'}
 
 class TimeRegularizedDeconvolution:
     def __init__(
         self,
         dataset: DeconvolutionDataset,
-        basis_functions: str,
-        polynomial_degree: int,
         device: torch.device,
         dtype: torch.dtype,
         use_betas: bool = True,
+        trajectory_model_type: str = 'polynomial',
+        **kwargs
     ):
 
         self.dataset = dataset
@@ -68,15 +69,26 @@ class TimeRegularizedDeconvolution:
         self.log_phi_prior_loc = -5.0
         self.log_phi_prior_scale = 1.0
 
-        self.population_proportion_model = BasicTrajectoryModule(
-            basis_functions=basis_functions,
-            polynomial_degree=polynomial_degree,
-            num_cell_types=self.dataset.num_cell_types,
-            num_samples=self.dataset.num_samples,
-            init_posterior_global_scale_factor=self.init_posterior_global_scale_factor,
-            device=device,
-            dtype=dtype,
-        )
+        if trajectory_model_type == 'polynomial':  
+            self.population_proportion_model = BasicTrajectoryModule(
+                basis_functions=kwargs['basis_functions'],
+                polynomial_degree=kwargs['polynomial_degree'],
+                num_cell_types=self.dataset.num_cell_types,
+                num_samples=self.dataset.num_samples,
+                init_posterior_global_scale_factor=self.init_posterior_global_scale_factor,
+                device=device,
+                dtype=dtype,
+            )
+        elif trajectory_model_type == 'gp':
+            self.population_proportion_model = VSGPTrajectoryModule(
+                xi_mq=self.dataset.t_m[..., None].contiguous(),
+                num_cell_types=self.dataset.num_cell_types,
+                init_posterior_global_scale_factor=self.init_posterior_global_scale_factor,
+                device=device,
+                dtype=dtype)
+            
+        else:
+            raise ValueError        
 
         #####################################################
         ## Prior
@@ -91,9 +103,9 @@ class TimeRegularizedDeconvolution:
         self.log_phi_posterior_loc = -5.0
         self.log_phi_posterior_scale = 0.1 * self.init_posterior_global_scale_factor
 
-        self.dirichlet_alpha_posterior = (
-            self.init_posterior_global_scale_factor * np.ones((1,))
-        )
+        # self.dirichlet_alpha_posterior = (
+        #     self.init_posterior_global_scale_factor * np.ones((1,))
+        # )
 
         # cache useful tensors
         self.w_hat_gc = torch.tensor(self.dataset.w_hat_gc, device=device, dtype=dtype)
@@ -150,8 +162,12 @@ class TimeRegularizedDeconvolution:
 
         w_gc = unnorm_w_gc / unnorm_w_gc.sum(0)
 
-        cell_pop_mc = self.population_proportion_model.model(t_m=t_m)
-
+        #cell_pop_mc = self.population_proportion_model.model(t_m=t_m)
+        # get the prior cell populations from the trajectory module
+        cell_pop_mc = self.population_proportion_model.model(
+            xi_mq=t_m[..., None].contiguous()
+        )
+        
         # calculate mean gene expression
         mu_mg = x_mg.sum(-1)[:, None] * torch.matmul(
             cell_pop_mc, w_gc.transpose(-1, -2)
@@ -159,11 +175,10 @@ class TimeRegularizedDeconvolution:
 
         with pyro.plate("batch"):
             # observe gene expression
+            # todo: sample specific phi?
             pyro.sample(
                 "x_mg",
-                NegativeBinomialAltParam(mu=mu_mg, phi=phi_g[None, :]).to_event(
-                    1
-                ),  # sample specific phi?
+                NegativeBinomialAltParam(mu=mu_mg, phi=phi_g[None, :]).to_event(1),  
                 obs=x_mg,
             )
 
@@ -196,7 +211,12 @@ class TimeRegularizedDeconvolution:
             "log_beta_g", dist.Delta(v=log_beta_posterior_loc_g).to_event(1)
         )
 
-        self.population_proportion_model.guide()
+        #self.population_proportion_model.guide()
+        
+        # get the posterior cell populations from the trajectory module
+        cell_pop_mc = self.population_proportion_model.guide(
+            xi_mq=t_m[..., None].contiguous()
+        )
 
     def fit_model(
         self,

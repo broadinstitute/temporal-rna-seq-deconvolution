@@ -27,6 +27,34 @@ from ternadecov.hypercluster import *
 from ternadecov.dataset import *
 
 
+from pyro.contrib.gp.models import VariationalSparseGP, VariationalGP
+from pyro.nn.module import PyroParam, pyro_method
+import pyro.contrib.gp.kernels as kernels
+from pyro.contrib.gp.parameterized import Parameterized
+
+from abc import abstractmethod
+
+
+class TrajectoryModule(Parameterized):
+    """The base class of all trajectory modules."""
+    
+    def __init__(self):
+        super(TrajectoryModule, self).__init__()
+        
+    
+    @abstractmethod
+    def model(self, xi_mq: torch.Tensor) -> torch.Tensor:
+        """TBW."""
+        raise NotImplementedError
+        
+    @abstractmethod
+    def guide(self, xi_mq: torch.Tensor) -> torch.Tensor:
+        """TBW."""
+        raise NotImplementedError
+    
+    
+
+
 class BasicTrajectoryModule:
     def __init__(
         self,
@@ -91,7 +119,9 @@ class BasicTrajectoryModule:
             / self.num_cell_types
         )
 
-    def model(self, t_m: torch.Tensor):
+    def model(self, xi_mq: torch.Tensor):
+        
+        t_m = xi_mq[:,0]
 
         # sample unnorm_cell_pop_base_c
         unnorm_cell_pop_base_c = pyro.sample(
@@ -200,8 +230,9 @@ class BasicTrajectoryModule:
 
         return cell_pop_mc
 
-    def guide(self):
+    def guide(self, xi_mq):
 
+        
         # variational parameters for unnorm_cell_pop_base_c ("B_c")
         unnorm_cell_pop_base_posterior_loc_c = pyro.param(
             "unnorm_cell_pop_base_posterior_loc_c",
@@ -260,6 +291,8 @@ class BasicTrajectoryModule:
         cell_pop_mc = pyro.sample(
             "cell_pop_mc", dist.Delta(v=cell_pop_posterior_loc_mc).to_event(2),
         )
+        
+        
 
     def calculate_composition_trajectories(
         self, dataset, n_intervals=100, return_vals=False
@@ -351,3 +384,162 @@ class BasicTrajectoryModule:
 
         if return_vals:
             return self.calculated_trajectories
+
+        
+
+
+class VSGPTrajectoryModule(TrajectoryModule):
+
+    def __init__(
+            self,
+            xi_mq: torch.Tensor,
+            num_cell_types: int,
+            init_posterior_global_scale_factor: float,
+            device: torch.device,
+            dtype: torch.dtype,
+        ):
+        """TBW.
+        
+        :param xi_mq: covariate tensor with shape (num_sample, covariate_n_dim)
+        
+        .. note:: in the current model where the only covairate is time, covariate_n_dim == 1
+        
+        .. note:: The Gaussian process is specifying a function in a (num_cell_types)-dimensional
+          unconstrained Euclidean space. Applying softmax to this function give us the normalized
+          cell populations on the (num_cell_types)-dimensional simplex. We refer to the unnormalized
+          function as "f" for brevity in the code.
+          
+        """
+        super(VSGPTrajectoryModule, self).__init__()
+        
+        self.xi_mq = xi_mq
+        self.num_cell_types = num_cell_types
+        self.init_posterior_global_scale_factor = init_posterior_global_scale_factor
+        self.device = device
+        self.dtype = dtype
+        
+        assert xi_mq.ndim == 2
+        self.num_samples, self.covariate_n_dim = xi_mq.shape
+        
+        # todo: pull up to __init__ signature
+        self.num_inducing_points = 10
+        self.init_rbf_kernel_lengthscale = 0.5
+        self.init_rbf_kernel_variance = 0.5
+        self.init_whitenoise_kernel_variance = 0.1
+        self.gp_cholesky_jitter = 1e-4
+        
+        #####################################################
+        ## Prior
+        #####################################################
+
+        # kernel setup
+        kernel_rbf = kernels.RBF(
+            input_dim=self.covariate_n_dim,
+            variance=torch.tensor(self.init_rbf_kernel_variance, device=device, dtype=dtype),
+            lengthscale=torch.tensor(self.init_rbf_kernel_lengthscale, device=device, dtype=dtype))
+        kernel_whitenoise = kernels.WhiteNoise(
+            input_dim=self.covariate_n_dim,
+            variance=torch.tensor(self.init_whitenoise_kernel_variance, device=device, dtype=dtype))
+        kernel_full = kernels.Sum(kernel_rbf, kernel_whitenoise)
+
+        # mean output
+        self.gp_f_mean_c = PyroParam(
+            torch.zeros((self.num_cell_types,), device=device, dtype=dtype))
+
+        def f_mean_function(xi_nq: torch.Tensor):
+            """Takes the covariate tensor with shape (batch_size, covariate_n_dim) and returns the function
+            mean with shape (num_cell_types, batch_size).
+            
+            .. note: the shape of the output of GP is permuted.
+            """
+            assert xi_nq.ndim == 2
+            assert xi_nq.shape[-1] == self.covariate_n_dim
+            batch_size = xi_nq.shape[0]
+            return self.gp_f_mean_c[..., None].expand([self.num_cell_types, batch_size])
+
+        # initial position for the inducing points
+        x_mean, x_std = torch.mean(self.xi_mq).item(), torch.std(self.xi_mq).item()
+        self.Xu_init = x_mean + x_std * torch.randn(
+            self.num_inducing_points, self.covariate_n_dim,
+            device=device, dtype=dtype)
+
+        # instantiate VSGP model
+        self.gp = VariationalGP(
+            X=xi_mq,
+            y=None,
+            kernel=kernel_full,
+#             Xu=self.Xu_init,
+#             num_data=self.num_samples,
+            likelihood=None,
+            mean_function=f_mean_function,
+            latent_shape=torch.Size([self.num_cell_types]),
+            whiten=True,
+            jitter=self.gp_cholesky_jitter)
+        
+        #####################################################
+        ## Posterior
+        #####################################################
+
+        self.gp_init_f_posterior_loc_mc = torch.zeros(
+            (self.num_samples, self.num_cell_types), device=device, dtype=dtype)
+
+    @pyro_method
+    def model(self, xi_mq: torch.Tensor) -> torch.Tensor:
+        self.set_mode("model")
+        
+        # assert that covariates have the same shape as what given to the initializer
+        assert xi_mq.shape == (self.num_samples, self.covariate_n_dim)
+        
+        # sample the inducing points (this happens implicitly in the model() call to gp)
+        self.gp.set_data(X=xi_mq, y=None)
+        f_loc_cm, f_var_cm = self.gp.model()
+                
+        assert f_loc_cm.shape == (self.num_cell_types, self.num_samples)
+        assert f_var_cm.shape == (self.num_cell_types, self.num_samples)
+        
+        # permute the indices and var -> std
+        f_loc_mc = f_loc_cm.permute(-1, -2)
+        f_scale_mc = f_var_cm.sqrt().permute(-1, -2)
+
+        with pyro.plate("batch"):
+            f_mc = pyro.sample(
+                "f_mc",
+                pyro.distributions.Normal(
+                    loc=f_loc_mc,
+                    scale=f_scale_mc).to_event(1))
+
+        # finally, apply a softmax to bring the unnormalized cell population ("f) inside
+        # the simplex
+        cell_pop_mc = torch.softmax(f_mc, -1)
+        assert cell_pop_mc.shape == (self.num_samples, self.num_cell_types)
+
+        return cell_pop_mc
+
+    @pyro_method
+    def guide(self, xi_mq: torch.Tensor) -> torch.Tensor:
+        self.set_mode("guide")
+
+        # sample the posterior of the inducing points (happens implicitly inside the guide() call of gp)
+        self.gp.guide()
+        
+        # sample the posterior of the unnormalized cell population ("f)
+        f_posterior_loc_mc = pyro.param(
+            "f_posterior_loc_mc",
+            self.gp_init_f_posterior_loc_mc)
+        with pyro.plate("batch"):
+            f_mc = pyro.sample(
+                "f_mc",
+                pyro.distributions.Delta(v=f_posterior_loc_mc).to_event(1))
+
+        # finally, apply a softmax to bring the unnormalized cell population ("f) inside
+        # the simplex
+        cell_pop_mc = torch.softmax(f_mc, -1)
+        assert cell_pop_mc.shape == (self.num_samples, self.num_cell_types)
+
+        return cell_pop_mc
+    
+    def calculate_composition_trajectories(
+            self, dataset, n_intervals=100, return_vals=False
+        ):
+        """Calculate the composition trajectories"""
+        raise NotImplementedError
