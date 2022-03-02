@@ -43,7 +43,9 @@ def generate_batch(
         "t_m": torch.tensor(dataset.dpi_time_m, device=device, dtype=dtype),
     }
 
-_TRAJECTORY_MODEL_TYPES = {'polynomial', 'gp'}
+
+_TRAJECTORY_MODEL_TYPES = {"polynomial", "gp"}
+
 
 class TimeRegularizedDeconvolution:
     def __init__(
@@ -52,14 +54,15 @@ class TimeRegularizedDeconvolution:
         device: torch.device,
         dtype: torch.dtype,
         use_betas: bool = True,
-        trajectory_model_type: str = 'polynomial',
-        **kwargs
+        trajectory_model_type: str = "polynomial",
+        **kwargs,
     ):
 
         self.dataset = dataset
         self.device = device
         self.dtype = dtype
         self.use_betas = use_betas
+        self.trajectory_model_type = trajectory_model_type
 
         self.init_posterior_global_scale_factor = 0.05
 
@@ -69,43 +72,32 @@ class TimeRegularizedDeconvolution:
         self.log_phi_prior_loc = -5.0
         self.log_phi_prior_scale = 1.0
 
-        if trajectory_model_type == 'polynomial':  
+        if trajectory_model_type == "polynomial":
             self.population_proportion_model = BasicTrajectoryModule(
-                basis_functions=kwargs['basis_functions'],
-                polynomial_degree=kwargs['polynomial_degree'],
+                basis_functions=kwargs["basis_functions"],
+                polynomial_degree=kwargs["polynomial_degree"],
                 num_cell_types=self.dataset.num_cell_types,
                 num_samples=self.dataset.num_samples,
                 init_posterior_global_scale_factor=self.init_posterior_global_scale_factor,
                 device=device,
                 dtype=dtype,
             )
-        elif trajectory_model_type == 'gp':
-            self.population_proportion_model = VSGPTrajectoryModule(
+        elif trajectory_model_type == "gp":
+            self.population_proportion_model = VGPTrajectoryModule(
                 xi_mq=self.dataset.t_m[..., None].contiguous(),
                 num_cell_types=self.dataset.num_cell_types,
                 init_posterior_global_scale_factor=self.init_posterior_global_scale_factor,
                 device=device,
-                dtype=dtype)
-            
+                dtype=dtype,
+            )
+
         else:
-            raise ValueError        
-
-        #####################################################
-        ## Prior
-        #####################################################
-
-        #####################################################
-        ## Posterior
-        #####################################################
+            raise ValueError
 
         self.log_beta_posterior_scale = 1.0 * self.init_posterior_global_scale_factor
         self.tau_posterior_scale = 1.0 * self.init_posterior_global_scale_factor
         self.log_phi_posterior_loc = -5.0
         self.log_phi_posterior_scale = 0.1 * self.init_posterior_global_scale_factor
-
-        # self.dirichlet_alpha_posterior = (
-        #     self.init_posterior_global_scale_factor * np.ones((1,))
-        # )
 
         # cache useful tensors
         self.w_hat_gc = torch.tensor(self.dataset.w_hat_gc, device=device, dtype=dtype)
@@ -162,12 +154,11 @@ class TimeRegularizedDeconvolution:
 
         w_gc = unnorm_w_gc / unnorm_w_gc.sum(0)
 
-        #cell_pop_mc = self.population_proportion_model.model(t_m=t_m)
         # get the prior cell populations from the trajectory module
         cell_pop_mc = self.population_proportion_model.model(
             xi_mq=t_m[..., None].contiguous()
         )
-        
+
         # calculate mean gene expression
         mu_mg = x_mg.sum(-1)[:, None] * torch.matmul(
             cell_pop_mc, w_gc.transpose(-1, -2)
@@ -178,7 +169,7 @@ class TimeRegularizedDeconvolution:
             # todo: sample specific phi?
             pyro.sample(
                 "x_mg",
-                NegativeBinomialAltParam(mu=mu_mg, phi=phi_g[None, :]).to_event(1),  
+                NegativeBinomialAltParam(mu=mu_mg, phi=phi_g[None, :]).to_event(1),
                 obs=x_mg,
             )
 
@@ -211,8 +202,8 @@ class TimeRegularizedDeconvolution:
             "log_beta_g", dist.Delta(v=log_beta_posterior_loc_g).to_event(1)
         )
 
-        #self.population_proportion_model.guide()
-        
+        # self.population_proportion_model.guide()
+
         # get the posterior cell populations from the trajectory module
         cell_pop_mc = self.population_proportion_model.guide(
             xi_mq=t_m[..., None].contiguous()
@@ -272,47 +263,83 @@ class TimeRegularizedDeconvolution:
 
         return ax
 
-    def calculate_composition_trajectories(self, n_intervals=100, return_vals=False):
-        self.population_proportion_model.calculate_composition_trajectories(
-            self.dataset, n_intervals=100, return_vals=False
-        )
-
-    def get_composition_trajectories(self):
-        """Return the composition trajectories"""
-        return self.population_proportion_model.calculated_trajectories
-
-    def plot_composition_trajectories(self, show_hypercluster=False):
+    def plot_composition_trajectories(self, show_hypercluster=False, **kwargs):
         """Plot the composition trajectories"""
 
-        if self.dataset.is_hyperclustered and not show_hypercluster:
-            fig, ax = matplotlib.pyplot.subplots()
-            ax.plot(
-                self.calculated_trajectories["true_times_z"],
-                self.calculated_trajectories["summarized_composition_rt"].T,
-            )
-            ax.set_title("Predicted cell proportions")
-            ax.set_xlabel("Time")
+        if "show_sampled_trajectories" in kwargs.keys():
 
-            labels = []
+            if self.dataset.is_hyperclustered and not show_hypercluster:
+                raise NotImplementedError
 
-            r = self.calculated_trajectories["toplevel_cell_map"]
-            map_r = {r[k]: k for k in r}
-            for i in range(len(map_r)):
-                labels.append(map_r[i])
-            ax.legend(labels, loc="best", fontsize="small")
+            else:
+                # TODO: Fix x axis scale
+
+                n_samples = kwargs["n_samples"]
+
+                with torch.no_grad():
+                    traj = self.population_proportion_model
+                    xi_new_nq = torch.linspace(
+                        0.0, 1.0, n_samples, device=self.device, dtype=self.dtype
+                    )[..., None]
+                    f_new_loc_cn, f_new_var_cn = traj.gp.forward(
+                        xi_new_nq, full_cov=False
+                    )
+                    f_new_scale_cn = f_new_var_cn.sqrt()
+                    f_new_sampled_scn = torch.distributions.Normal(
+                        f_new_loc_cn, f_new_scale_cn
+                    ).sample([n_samples])
+                    pi_new_sampled_scn = torch.softmax(f_new_sampled_scn, dim=1)
+                    pi_new_loc_cn = torch.softmax(f_new_loc_cn, dim=0)
+
+                fig, ax = matplotlib.pyplot.subplots(figsize=(10, 8))
+
+                # plot the mean trajectory
+                ax.plot(xi_new_nq.cpu().numpy(), pi_new_loc_cn.cpu().numpy().T)
+
+                # plot samples
+                prop_cycle = matplotlib.pyplot.rcParams["axes.prop_cycle"]
+                colors = prop_cycle.by_key()["color"]
+                for i_cell_type in range(pi_new_loc_cn.shape[0]):
+                    color = colors[i_cell_type]
+                    ax.scatter(
+                        x=xi_new_nq.expand((n_samples,) + xi_new_nq.shape)
+                        .cpu()
+                        .numpy()
+                        .flatten(),
+                        y=pi_new_sampled_scn[:, i_cell_type, :].cpu().numpy().flatten(),
+                        c=color,
+                        alpha=0.1,
+                        s=0.5,
+                    )
+
         else:
-            fig, ax = matplotlib.pyplot.subplots()
-            ax.plot(
-                self.population_proportion_model.calculated_trajectories[
-                    "true_times_z"
-                ],
-                self.population_proportion_model.calculated_trajectories[
-                    "norm_comp_tc"
-                ],
+            traj = self.population_proportion_model.get_composition_trajectories(
+                self.dataset, n_intervals=100
             )
-            ax.set_title("Predicted cell proportions")
-            ax.set_xlabel("Time")
-            ax.legend(self.dataset.cell_type_str_list, loc="best", fontsize="small")
+
+            if self.dataset.is_hyperclustered and not show_hypercluster:
+                fig, ax = matplotlib.pyplot.subplots()
+                ax.plot(
+                    traj["true_times_z"], traj["summarized_composition_rt"].T,
+                )
+                ax.set_title("Predicted cell proportions")
+                ax.set_xlabel("Time")
+
+                labels = []
+
+                r = traj["toplevel_cell_map"]
+                map_r = {r[k]: k for k in r}
+                for i in range(len(map_r)):
+                    labels.append(map_r[i])
+                ax.legend(labels, loc="best", fontsize="small")
+            else:
+                fig, ax = matplotlib.pyplot.subplots()
+                ax.plot(
+                    traj["true_times_z"], traj["norm_comp_tc"],
+                )
+                ax.set_title("Predicted cell proportions")
+                ax.set_xlabel("Time")
+                ax.legend(self.dataset.cell_type_str_list, loc="best", fontsize="small")
 
     def plot_phi_g_distribution(self):
         """Plot the distribution of phi_g"""
@@ -390,7 +417,17 @@ class TimeRegularizedDeconvolution:
         :param figsize: tuple of size 2 with figure size information
         """
         t_m = self.dataset.t_m.clone().detach().cpu()
-        cell_pop_mc = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
+
+        if self.trajectory_model_type == "polynomial":
+            cell_pop_mc = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
+        elif self.trajectory_model_type == "gp":
+            cell_pop_mc = (
+                self.population_proportion_model.guide(torch.Tensor([]))
+                .clone()
+                .detach()
+                .cpu()
+            )
+
         sort_order = torch.argsort(self.dataset.t_m)
 
         n_cell_types = cell_pop_mc.shape[1]
@@ -424,7 +461,17 @@ class TimeRegularizedDeconvolution:
         assert self.dataset.is_hyperclustered
 
         t_m = self.dataset.t_m.clone().detach().cpu()
-        cell_pop_mc = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
+
+        if self.trajectory_model_type == "polynomial":
+            cell_pop_mc = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
+        elif self.trajectory_model_type == "gp":
+            cell_pop_mc = (
+                self.population_proportion_model.guide(torch.Tensor([]))
+                .clone()
+                .detach()
+                .cpu()
+            )
+
         sort_order = torch.argsort(self.dataset.t_m)
 
         ## Summarise cell_pop_mc to the high-level clusters
@@ -483,8 +530,19 @@ class TimeRegularizedDeconvolution:
     def plot_sample_compositions_boxplot(self, figsize=(16, 9)):
         figsize = (16, 9)
 
+        # todo: not clear if this is even needed
+        if self.trajectory_model_type == "polynomial":
+            cell_pop = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
+        elif self.trajectory_model_type == "gp":
+            cell_pop = (
+                self.population_proportion_model.guide(torch.Tensor([]))
+                .clone()
+                .detach()
+                .cpu()
+            )
+
         t_m = self.dataset.t_m.clone().detach().cpu()
-        cell_pop = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
+
         sort_order = torch.argsort(self.dataset.t_m)
 
         n_cell_types = cell_pop.shape[1]

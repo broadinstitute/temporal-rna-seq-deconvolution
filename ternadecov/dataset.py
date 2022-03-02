@@ -21,11 +21,11 @@ import seaborn as sns
 import time
 import scanpy as sc
 
-if 'boltons' in sys.modules:
+if "boltons" in sys.modules:
     from boltons.cacheutils import cachedproperty as cached_property
 else:
     from functools import cached_property
-    
+
 
 from typing import List
 
