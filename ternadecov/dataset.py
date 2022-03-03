@@ -46,8 +46,8 @@ class SingleCellDataset:
         dtype: torch.dtype,
         device: torch.device,
     ):
-        self.num_genes = sc_anndata.X.shape[0]
-        self.num_cells = sc_anndata.X.shape[1]
+        self.num_genes = sc_anndata.n_vars
+        self.num_cells = sc_anndata.n_obs
         self.sc_celltype_col = sc_celltype_col
         self.dtype_np = dtype_np
         self.dtype = dtype

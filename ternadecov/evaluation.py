@@ -29,6 +29,74 @@ from ternadecov.trajectories import *
 from ternadecov.time_deconv import *
 
 
+def evaluate_with_trajectory(
+    sc_dataset: SingleCellDataset,
+    n_samples: int,
+    trajectory_type: str,
+    trajectory_coef: Dict,
+    dtype_np,
+    dtype,
+    device,
+    n_iters=5_000,
+):
+    """Evaluate L1_error and measure fit time for fitting on a simulated dataset from a given trajectory
+    
+    :param sc_dataset: SingleCellDataset for generated simulations from
+    :param n_samples: number of samples along the time axis to generate
+    :param trajectory_type: string indicating the trajectory type to which the `trajectory_coef` correspond 
+    :param trajectory_coef: trajectory coefficients
+    
+    """
+
+    # Simulate bulk data
+    sim_res = simulate_data(
+        w_hat_gc=torch.Tensor(sc_dataset.w_hat_gc),
+        num_samples=n_samples,
+        trajectory_type=trajectory_type,
+        dirichlet_alpha=10.0,
+        trajectory_coef=trajectory_coef,
+    )
+    simulated_bulk = generate_anndata_from_sim(sim_res, reference_dataset=sc_dataset)
+
+    # Prepare deconvolution dataset
+    ebov_simulated_dataset = DeconvolutionDataset(
+        sc_anndata=sc_dataset.sc_anndata,
+        sc_celltype_col="Subclustering_reduced",
+        bulk_anndata=simulated_bulk,
+        bulk_time_col="time",
+        dtype_np=dtype_np,
+        dtype=dtype,
+        device=device,
+        feature_selection_method="common",
+    )
+
+    # Prepare deconvolution object
+    pseudo_time_reg_deconv_sim = TimeRegularizedDeconvolution(
+        dataset=ebov_simulated_dataset,
+        polynomial_degree=3,
+        basis_functions="polynomial",
+        device=device,
+        dtype=dtype,
+    )
+
+    # Deconvolve
+    t_0 = time.perf_counter()
+    pseudo_time_reg_deconv_sim.fit_model(
+        n_iters=n_iters, verbose=True, log_frequency=1000
+    )
+    t_1 = time.perf_counter()
+
+    # Calculate errors
+    errors = calculate_trajectory_prediction_error(sim_res, pseudo_time_reg_deconv_sim)
+
+    # Return
+    return {
+        "n_samples": n_samples,
+        "l1_error_norm": errors["L1_error_norm"],
+        "fit_time": t_1 - t_0,
+    }
+
+
 def evaluate_model(params: dict, reference_deconvolution: TimeRegularizedDeconvolution):
     # TODO: Update to work with different proportion types
 
