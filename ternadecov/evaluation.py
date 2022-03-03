@@ -38,6 +38,7 @@ def evaluate_with_trajectory(
     dtype_np,
     dtype,
     device,
+    deconvolution_params: Dict,
     n_iters=5_000,
 ):
     """Evaluate L1_error and measure fit time for fitting on a simulated dataset from a given trajectory
@@ -74,10 +75,11 @@ def evaluate_with_trajectory(
     # Prepare deconvolution object
     pseudo_time_reg_deconv_sim = TimeRegularizedDeconvolution(
         dataset=ebov_simulated_dataset,
-        polynomial_degree=3,
-        basis_functions="polynomial",
+        # polynomial_degree=3,
+        # basis_functions="polynomial",
         device=device,
         dtype=dtype,
+        **deconvolution_params,
     )
 
     # Deconvolve
