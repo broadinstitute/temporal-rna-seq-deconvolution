@@ -19,6 +19,7 @@ import pandas as pd
 import seaborn as sns
 import time
 import scanpy as sc
+from typing import Dict
 
 from ternadecov.stats_helpers import *
 from ternadecov.simulator import *
@@ -82,7 +83,10 @@ def evaluate_with_trajectory(
     # Deconvolve
     t_0 = time.perf_counter()
     pseudo_time_reg_deconv_sim.fit_model(
-        n_iters=n_iters, verbose=True, log_frequency=1000
+        n_iters=n_iters,
+        verbose=True,
+        log_frequency=1000,
+        keep_param_store_history=False,
     )
     t_1 = time.perf_counter()
 
