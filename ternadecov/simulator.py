@@ -12,14 +12,14 @@ from ternadecov.stats_helpers import *
 import pandas as pd
 
 
-def generate_anndata_from_sim(sim_res, reference_deconvolution):
+def generate_anndata_from_sim(sim_res, reference_dataset):
     """Generate AnnData object from the simulation results
 
     :param sim_res: simulation results dictonary
     :param reference_deconvolution: reference deconvolution object
     """
 
-    var_tmp = pd.DataFrame({"gene": reference_deconvolution.dataset.selected_genes})
+    var_tmp = pd.DataFrame({"gene": list(reference_dataset.sc_anndata.var.index)})
     var_tmp = var_tmp.set_index("gene")
 
     return anndata.AnnData(
@@ -517,12 +517,10 @@ def calculate_trajectory_prediction_error(
         )
 
     # Get the predictions
-    pseudo_time_reg_deconv_sim.population_proportion_model.calculate_composition_trajectories(
+    traj = pseudo_time_reg_deconv_sim.population_proportion_model.get_composition_trajectories(
         dataset=pseudo_time_reg_deconv_sim.dataset, n_intervals=n_intervals
     )
-    ret_vals = (
-        pseudo_time_reg_deconv_sim.population_proportion_model.calculated_trajectories
-    )
+    ret_vals = traj
 
     predicted_composition_cm = ret_vals["norm_comp_tc"]
 
