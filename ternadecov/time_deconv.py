@@ -125,6 +125,7 @@ class TimeRegularizedDeconvolution:
                 ),
             ).to_event(1),
         )
+        # print(f'log_phi_g: {log_phi_g.shape}')
         assert log_phi_g.shape == (self.dataset.num_genes,)
 
         # sample log_beta_g
@@ -502,7 +503,7 @@ class TimeRegularizedDeconvolution:
 
         cell_pop_summarized_mk.index_add_(1, index, cell_pop_mc)
 
-        print(f"cell_pop_summarized_mk shape: {cell_pop_summarized_mk.shape}")
+        # print(f"cell_pop_summarized_mk shape: {cell_pop_summarized_mk.shape}")
 
         n_cell_types = cell_pop_summarized_mk.shape[1]
 

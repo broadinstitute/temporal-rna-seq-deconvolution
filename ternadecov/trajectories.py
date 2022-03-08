@@ -177,6 +177,7 @@ class BasicTrajectoryModule(TrajectoryModule):
         )
         assert dirichlet_alpha.shape == (1,)
 
+        deformation_mc = None
         if self.basis_functions == "polynomial":
             tau_km = torch.pow(
                 t_m[None, :],
@@ -205,6 +206,8 @@ class BasicTrajectoryModule(TrajectoryModule):
             deformation_mc = torch.matmul(
                 unnorm_cell_pop_deform_ck, intermediate_legenre_vals_km
             ).transpose(-1, -2)
+        else:
+            raise NotImplementedError
 
         # The normalized underlying trajectories, serve as Dirichlet params
         trajectory_mc = torch.nn.functional.softmax(

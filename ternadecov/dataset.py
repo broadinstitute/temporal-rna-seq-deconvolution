@@ -114,6 +114,7 @@ class DeconvolutionDataset:
             "do_preproc": True,
             "verbose": True,
         },
+        verbose=True,
     ):
 
         self.sc_celltype_col = sc_celltype_col
@@ -133,6 +134,8 @@ class DeconvolutionDataset:
         )
 
         self.num_genes = len(selected_genes)
+        if verbose:
+            print(f"{self.num_genes} genes selected")
 
         # Subset the single cell AnnData object
         # self.sc_anndata = sc_anndata[:, sc_anndata.var.index.isin(selected_genes)]
@@ -238,7 +241,7 @@ class DeconvolutionDataset:
 
         return self.selected_genes
 
-    @cached_property
+    @property
     def cell_type_str_list(self) -> List[str]:
         # return sorted(list(set(self.sc_anndata.obs[self.sc_celltype_col])))
         # Nan safe version
@@ -250,22 +253,22 @@ class DeconvolutionDataset:
             )
         )
 
-    @cached_property
+    @property
     def cell_type_str_to_index_map(self) -> Dict[str, int]:
         return {
             cell_type_str: index
             for index, cell_type_str in enumerate(self.cell_type_str_list)
         }
 
-    @cached_property
+    @property
     def num_cell_types(self) -> int:
         return len(self.cell_type_str_list)
 
-    @cached_property
+    @property
     def num_samples(self) -> int:
         return self.bulk_anndata.X.shape[0]
 
-    @cached_property
+    @property
     def w_hat_gc(self) -> np.ndarray:
         """Calculate the estimate cell profiles"""
         w_hat_gc = np.zeros((self.num_genes, self.num_cell_types))
@@ -278,14 +281,14 @@ class DeconvolutionDataset:
             )
         return w_hat_gc
 
-    @cached_property
+    @property
     def bulk_raw_gex_mg(self) -> torch.tensor:
         return torch.tensor(self.bulk_anndata.X, device=self.device, dtype=self.dtype)
 
-    @cached_property
+    @property
     def t_m(self) -> torch.tensor:
         return torch.tensor(self.dpi_time_m, device=self.device, dtype=self.dtype)
 
-    @cached_property
+    @property
     def bulk_sample_names(self) -> List[str]:
         return list(self.bulk_anndata.obs.index)
