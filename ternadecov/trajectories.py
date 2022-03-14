@@ -456,6 +456,10 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
             (self.num_samples, self.num_cell_types), device=device, dtype=dtype
         )
 
+        self.gp_init_f_posterior_scale_mc = torch.ones(
+            (self.num_samples, self.num_cell_types), device=device, dtype=dtype
+        )
+
     @pyro_method
     def model(self, xi_mq: torch.Tensor) -> torch.Tensor:
         self.set_mode("model")
@@ -498,9 +502,21 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
         f_posterior_loc_mc = pyro.param(
             "f_posterior_loc_mc", self.gp_init_f_posterior_loc_mc
         )
+
+        f_posterior_scale_mc = pyro.param(
+            "f_posterior_scale_mc", self.gp_init_f_posterior_scale_mc
+        )
+
+        # with pyro.plate("batch"):
+        #     f_mc = pyro.sample(
+        #         "f_mc", pyro.distributions.Delta(v=f_posterior_loc_mc).to_event(1)
+        #     )
         with pyro.plate("batch"):
             f_mc = pyro.sample(
-                "f_mc", pyro.distributions.Delta(v=f_posterior_loc_mc).to_event(1)
+                "f_mc",
+                pyro.distributions.Normal(
+                    loc=f_posterior_loc_mc, scale=f_posterior_scale_mc
+                ).to_event(1),
             )
 
         # finally, apply a softmax to bring the unnormalized cell population ("f) inside

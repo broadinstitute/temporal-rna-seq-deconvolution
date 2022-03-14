@@ -400,6 +400,76 @@ class TimeRegularizedDeconvolution:
         composition_df = self.sample_composition_default()
         composition_df.to_csv(csv_filename)
 
+    def plot_sample_compositions_boxplot_confidence(
+        self, n_draws=100, verbose=True, figsize=(20, 15), dpi=80
+    ):
+        # l -- draw index
+        assert self.trajectory_model_type == "gp"
+
+        n_samples = self.dataset.num_samples
+        n_celltypes = self.dataset.num_cell_types
+        cell_pop_lmc = torch.zeros([n_draws, n_samples, n_celltypes])
+        sort_order = torch.argsort(self.dataset.t_m)
+
+        fig_nrow = math.floor(math.sqrt(n_celltypes))
+        fig_ncol = math.ceil(math.sqrt(n_celltypes))
+
+        # Generate draws from posterior
+        for i in range(n_draws):
+            cell_pop_lmc[i, :] = (
+                self.population_proportion_model.guide(torch.Tensor([]))
+                .clone()
+                .detach()
+                .cpu()
+            )[None, :]
+
+        # Get quantiles of draw
+        plot_quantiles = torch.quantile(cell_pop_lmc, q=torch.linspace(0, 1, 5), dim=0)
+
+        # Generate figure and axis
+        fig, ax = matplotlib.pyplot.subplots(
+            fig_nrow, fig_ncol, figsize=figsize, dpi=dpi
+        )
+
+        for c in range(plot_quantiles.shape[2]):  # celltypes
+            if verbose:
+                print(f"Processing {self.dataset.cell_type_str_list[c]}")
+
+            # Generate data for this panel
+            plot_data = list()
+            for m in range(plot_quantiles.shape[1]):  # samples
+                m = sort_order[m]
+                plot_data.append(
+                    {
+                        "whislo": plot_quantiles[0, m, c].item(),
+                        "q1": plot_quantiles[1, m, c].item(),
+                        "med": plot_quantiles[2, m, c].item(),
+                        "q3": plot_quantiles[3, m, c].item(),
+                        "whishi": plot_quantiles[4, m, c].item(),
+                        "label": f"{self.dataset.bulk_sample_names[m]}",
+                    }
+                )
+
+            # Plot panel
+            boxprops = dict(facecolor=cm.tab10(c))
+            cur_axis = ax[c // fig_nrow, c % fig_nrow]
+            pxb_obj = cur_axis.bxp(
+                bxpstats=plot_data,
+                showfliers=False,
+                shownotches=False,
+                showmeans=False,
+                boxprops=boxprops,
+                patch_artist=True,
+            )
+            cur_axis.set_title(self.dataset.cell_type_str_list[c])
+            cur_axis.set_xticklabels(
+                list(self.dataset.bulk_sample_names[x.item()] for x in sort_order),
+                rotation=90,
+            )
+
+        fig.show()
+        fig.tight_layout()
+
     def plot_sample_compositions_scatter(
         self, figsize=(16, 9), ignore_hypercluster=False
     ):
