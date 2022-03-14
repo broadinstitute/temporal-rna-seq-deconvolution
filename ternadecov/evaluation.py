@@ -29,6 +29,24 @@ from ternadecov.dataset import *
 from ternadecov.trajectories import *
 from ternadecov.time_deconv import *
 
+#########################
+## Functions for fitting multiple models with different hyper parameters
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#########################
 
 def evaluate_with_trajectory(
     sc_dataset: SingleCellDataset,
