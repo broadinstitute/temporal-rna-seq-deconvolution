@@ -25,6 +25,7 @@ from ternadecov.simulator import *
 from ternadecov.stats_helpers import *
 from ternadecov.hypercluster import *
 from ternadecov.dataset import *
+from ternadecov.parametrization import *
 
 
 from pyro.contrib.gp.models import VariationalSparseGP, VariationalGP
@@ -364,6 +365,7 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
         init_posterior_global_scale_factor: float,
         device: torch.device,
         dtype: torch.dtype,
+        parametrization: TimeRegularizedDeconvolutionGPParametrization = TimeRegularizedDeconvolutionGPParametrization(),
     ):
         """TBW.
         
@@ -388,13 +390,19 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
         assert xi_mq.ndim == 2
         self.num_samples, self.covariate_n_dim = xi_mq.shape
 
-        # todo: pull up to __init__ signature
-        self.num_inducing_points = 10
-        self.init_rbf_kernel_lengthscale = 0.5
-        self.init_rbf_kernel_variance = 0.5
-        self.init_whitenoise_kernel_variance = 0.1
-        self.gp_cholesky_jitter = 1e-4
-
+        # # todo: pull up to __init__ signature
+        # self.num_inducing_points = 10  # 10 50 100
+        # self.init_rbf_kernel_lengthscale = 0.5 # .1, 1
+        # self.init_rbf_kernel_variance = 0.5 # .1, 1
+        # self.init_whitenoise_kernel_variance = 0.1 # .1, , 1/2,  1
+        # self.gp_cholesky_jitter = 1e-4
+        
+        self.num_inducing_points = parametrization.num_inducing_points
+        self.init_rbf_kernel_lengthscale = parametrization.init_rbf_kernel_lengthscale
+        self.init_rbf_kernel_variance = parametrization.init_rbf_kernel_variance
+        self.init_whitenoise_kernel_variance = parametrization.init_whitenoise_kernel_variance
+        self.gp_cholesky_jitter = parametrization.gp_cholesky_jitter
+        
         #####################################################
         ## Prior
         #####################################################

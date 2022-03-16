@@ -26,6 +26,7 @@ from ternadecov.stats_helpers import *
 from ternadecov.hypercluster import *
 from ternadecov.dataset import *
 from ternadecov.trajectories import *
+from ternadecov.parametrization import *
 
 # Indices:
 # - c cell type
@@ -46,22 +47,7 @@ def generate_batch(
 
 _TRAJECTORY_MODEL_TYPES = {"polynomial", "gp"}
 
-class TimeRegularizedDeconvolutionModelParametrization:
-    def __init__(self):
-        # Prior
-        self.log_beta_prior_scale = 1.0
-        self.tau_prior_scale = 1.0
-        self.log_phi_prior_loc = -5.0
-        self.log_phi_prior_scale = 1.0
-        
-        # Posterior
-        self.init_posterior_global_scale_factor = 0.05
-        
-        self.log_beta_posterior_scale = 1.0 * self.init_posterior_global_scale_factor
-        self.tau_posterior_scale = 1.0 * self.init_posterior_global_scale_factor
-        self.log_phi_posterior_loc = -5.0
-        self.log_phi_posterior_scale = 0.1 * self.init_posterior_global_scale_factor
-    
+
 
 class TimeRegularizedDeconvolutionModel:
     def __init__(
@@ -72,6 +58,7 @@ class TimeRegularizedDeconvolutionModel:
         use_betas: bool = True,
         trajectory_model_type: str = "polynomial",
         hyperparameters = None,
+        trajectory_hyperparameters = None,
         **kwargs,
     ):
         if hyperparameters is None:
@@ -84,6 +71,8 @@ class TimeRegularizedDeconvolutionModel:
         self.trajectory_model_type = trajectory_model_type
 
         self.init_posterior_global_scale_factor = hyperparameters.init_posterior_global_scale_factor
+        
+        
 
         # hyperparameters
         self.log_beta_prior_scale = hyperparameters.log_beta_prior_scale
@@ -92,6 +81,9 @@ class TimeRegularizedDeconvolutionModel:
         self.log_phi_prior_scale = hyperparameters.log_phi_prior_scale
 
         if trajectory_model_type == "polynomial":
+            if trajectory_hyperparameters is not None:
+                raise ValueError()
+            
             self.population_proportion_model = BasicTrajectoryModule(
                 basis_functions=kwargs["basis_functions"],
                 polynomial_degree=kwargs["polynomial_degree"],
@@ -102,10 +94,14 @@ class TimeRegularizedDeconvolutionModel:
                 dtype=dtype,
             )
         elif trajectory_model_type == "gp":
+            if trajectory_hyperparameters is None:
+                raise ValueError()
+            
             self.population_proportion_model = VGPTrajectoryModule(
                 xi_mq=self.dataset.t_m[..., None].contiguous(),
                 num_cell_types=self.dataset.num_cell_types,
                 init_posterior_global_scale_factor=self.init_posterior_global_scale_factor,
+                parametrization = trajectory_hyperparameters,
                 device=device,
                 dtype=dtype,
             )
