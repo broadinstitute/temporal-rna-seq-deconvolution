@@ -396,13 +396,15 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
         # self.init_rbf_kernel_variance = 0.5 # .1, 1
         # self.init_whitenoise_kernel_variance = 0.1 # .1, , 1/2,  1
         # self.gp_cholesky_jitter = 1e-4
-        
+
         self.num_inducing_points = parametrization.num_inducing_points
         self.init_rbf_kernel_lengthscale = parametrization.init_rbf_kernel_lengthscale
         self.init_rbf_kernel_variance = parametrization.init_rbf_kernel_variance
-        self.init_whitenoise_kernel_variance = parametrization.init_whitenoise_kernel_variance
+        self.init_whitenoise_kernel_variance = (
+            parametrization.init_whitenoise_kernel_variance
+        )
         self.gp_cholesky_jitter = parametrization.gp_cholesky_jitter
-        
+
         #####################################################
         ## Prior
         #####################################################

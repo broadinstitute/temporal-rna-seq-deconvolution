@@ -5,29 +5,57 @@ class TimeRegularizedDeconvolutionModelParametrization:
         self.tau_prior_scale = 1.0
         self.log_phi_prior_loc = -5.0
         self.log_phi_prior_scale = 1.0
-        
+
         # Posterior
         self.init_posterior_global_scale_factor = 0.05
-        
+
         self.log_beta_posterior_scale = 1.0 * self.init_posterior_global_scale_factor
         self.tau_posterior_scale = 1.0 * self.init_posterior_global_scale_factor
         self.log_phi_posterior_loc = -5.0
         self.log_phi_posterior_scale = 0.1 * self.init_posterior_global_scale_factor
-        
+
+
 class TimeRegularizedDeconvolutionGPParametrization:
     def __init__(self):
-        
-        self._num_inducing_points = 10  # 10 50 100
-        
-        self.init_rbf_kernel_lengthscale = 0.5 # .1, 1
-        self.init_rbf_kernel_variance = 0.5 # .1, 1
-        self.init_whitenoise_kernel_variance = 0.1 # .1, , 1/2,  1
+
+        self._num_inducing_points = 10  # This is not used
+
+        self.init_rbf_kernel_lengthscale = 0.5
+        self.init_rbf_kernel_variance = 0.5
+        self.init_whitenoise_kernel_variance = 0.1
         self.gp_cholesky_jitter = 1e-4
-    
+
     @property
     def num_inducing_points(self):
         return self._num_inducing_points
-    
+
     @num_inducing_points.setter
     def num_inducing_points(self, value):
         self._num_inducing_points = int(value)
+
+
+class DeconvolutionDatasetParametrization:
+    def __init__(self):
+        self.feature_selection_method = "common"
+        self.verbose = True
+
+        self.hypercluster = False
+        self.hypercluster_min_new_cluster_size = 100
+        self.hypercluster_min_cells_recluster = 1000
+        self.hypercluster_return_anndata = False
+        self.hypercluster_subcluster_resolution = 1
+        self.hypercluster_type = "louvain"
+        self.hypercluster_do_preproc = True
+        self.hypercluster_verbose = True
+
+    @property
+    def hypercluster_params(self):
+        return {
+            "min_new_cluster_size": self.hypercluster_min_new_cluster_size,
+            "min_cells_recluster": self.hypercluster_min_cells_recluster,
+            "return_anndata": self.hypercluster_return_anndata,
+            "subcluster_resolution": self.hypercluster_subcluster_resolution,
+            "type": self.hypercluster_type,
+            "do_preproc": self.hypercluster_do_preproc,
+            "verbose": self.hypercluster_verbose,
+        }

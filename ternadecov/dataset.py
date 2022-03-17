@@ -33,6 +33,7 @@ from ternadecov.stats_helpers import *
 from ternadecov.simulator import *
 from ternadecov.stats_helpers import *
 from ternadecov.hypercluster import *
+from ternadecov.parametrization import *
 
 
 class SingleCellDataset:
@@ -103,18 +104,21 @@ class DeconvolutionDataset:
         dtype_np: np.dtype,
         dtype: torch.dtype,
         device: torch.device,
-        feature_selection_method: str = "common",
-        hypercluster=False,
-        hypercluster_params={
-            "min_new_cluster_size": 100,
-            "min_cells_recluster": 1000,
-            "return_anndata": False,
-            "subcluster_resolution": 1,
-            "type": "louvain",
-            "do_preproc": True,
-            "verbose": True,
-        },
-        verbose=True,
+        ## Parametrization Object
+        # feature_selection_method: str = "common",
+        # hypercluster=False,
+        # hypercluster_params={
+        #     "min_new_cluster_size": 100,
+        #     "min_cells_recluster": 1000,
+        #     "return_anndata": False,
+        #     "subcluster_resolution": 1,
+        #     "type": "louvain",
+        #     "do_preproc": True,
+        #     "verbose": True,
+        # },
+        # verbose=True,
+        ###
+        parametrization,
     ):
 
         self.sc_celltype_col = sc_celltype_col
@@ -123,18 +127,21 @@ class DeconvolutionDataset:
         self.dtype = dtype
         self.device = device
         self.selected_genes = ()
+        self.verbose = parametrization.verbose
 
         ## Hypercluster related
-        self.is_hyperclustered = False
+        self.is_hyperclustered = parametrization.hypercluster
 
         # Select common genes and subset/order anndata objects
         # TODO: Issue warning if too many genes removed
         selected_genes = self.__select_features(
-            bulk_anndata, sc_anndata, feature_selection_method=feature_selection_method
+            bulk_anndata,
+            sc_anndata,
+            feature_selection_method=parametrization.feature_selection_method,
         )
 
         self.num_genes = len(selected_genes)
-        if verbose:
+        if self.verbose:
             print(f"{self.num_genes} genes selected")
 
         # Subset the single cell AnnData object
@@ -146,7 +153,8 @@ class DeconvolutionDataset:
         self.bulk_anndata = bulk_anndata[:, selected_genes]
 
         # Perform hyper clustering
-        if hypercluster:
+        if parametrization.hypercluster:
+
             self.is_hyperclustered = True
             self.hypercluster_results = hypercluster_anndata(
                 anndata_obj=sc_anndata,
@@ -238,6 +246,8 @@ class DeconvolutionDataset:
             self.selected_genes = list(
                 selected_genes_sc.intersection(set(list(bulk_anndata.var.index)))
             )
+        else:
+            raise ValueError()
 
         return self.selected_genes
 

@@ -48,7 +48,6 @@ def generate_batch(
 _TRAJECTORY_MODEL_TYPES = {"polynomial", "gp"}
 
 
-
 class TimeRegularizedDeconvolutionModel:
     def __init__(
         self,
@@ -57,8 +56,8 @@ class TimeRegularizedDeconvolutionModel:
         dtype: torch.dtype,
         use_betas: bool = True,
         trajectory_model_type: str = "polynomial",
-        hyperparameters = None,
-        trajectory_hyperparameters = None,
+        hyperparameters=None,
+        trajectory_hyperparameters=None,
         **kwargs,
     ):
         if hyperparameters is None:
@@ -70,20 +69,20 @@ class TimeRegularizedDeconvolutionModel:
         self.use_betas = use_betas
         self.trajectory_model_type = trajectory_model_type
 
-        self.init_posterior_global_scale_factor = hyperparameters.init_posterior_global_scale_factor
-        
-        
+        self.init_posterior_global_scale_factor = (
+            hyperparameters.init_posterior_global_scale_factor
+        )
 
         # hyperparameters
         self.log_beta_prior_scale = hyperparameters.log_beta_prior_scale
-        self.tau_prior_scale = hyperparameters.tau_prior_scale
+        # self.tau_prior_scale = hyperparameters.tau_prior_scale
         self.log_phi_prior_loc = hyperparameters.log_phi_prior_loc
         self.log_phi_prior_scale = hyperparameters.log_phi_prior_scale
 
         if trajectory_model_type == "polynomial":
             if trajectory_hyperparameters is not None:
                 raise ValueError()
-            
+
             self.population_proportion_model = BasicTrajectoryModule(
                 basis_functions=kwargs["basis_functions"],
                 polynomial_degree=kwargs["polynomial_degree"],
@@ -96,12 +95,12 @@ class TimeRegularizedDeconvolutionModel:
         elif trajectory_model_type == "gp":
             if trajectory_hyperparameters is None:
                 raise ValueError()
-            
+
             self.population_proportion_model = VGPTrajectoryModule(
                 xi_mq=self.dataset.t_m[..., None].contiguous(),
                 num_cell_types=self.dataset.num_cell_types,
                 init_posterior_global_scale_factor=self.init_posterior_global_scale_factor,
-                parametrization = trajectory_hyperparameters,
+                parametrization=trajectory_hyperparameters,
                 device=device,
                 dtype=dtype,
             )
@@ -110,7 +109,7 @@ class TimeRegularizedDeconvolutionModel:
             raise ValueError
 
         self.log_beta_posterior_scale = hyperparameters.log_beta_posterior_scale
-        self.tau_posterior_scale = hyperparameters.tau_posterior_scale
+        # self.tau_posterior_scale = hyperparameters.tau_posterior_scale
         self.log_phi_posterior_loc = hyperparameters.log_phi_posterior_loc
         self.log_phi_posterior_scale = hyperparameters.log_phi_posterior_scale
 
@@ -140,7 +139,6 @@ class TimeRegularizedDeconvolutionModel:
                 ),
             ).to_event(1),
         )
-        # print(f'log_phi_g: {log_phi_g.shape}')
         assert log_phi_g.shape == (self.dataset.num_genes,)
 
         # sample log_beta_g
@@ -517,8 +515,6 @@ class TimeRegularizedDeconvolutionModel:
             index[i_llc] = i_hlcc
 
         cell_pop_summarized_mk.index_add_(1, index, cell_pop_mc)
-
-        # print(f"cell_pop_summarized_mk shape: {cell_pop_summarized_mk.shape}")
 
         n_cell_types = cell_pop_summarized_mk.shape[1]
 
