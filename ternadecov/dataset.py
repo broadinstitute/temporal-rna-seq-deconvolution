@@ -119,6 +119,9 @@ class DeconvolutionDataset:
             parametrization.bulk_anndata,
             parametrization.sc_anndata,
             feature_selection_method=parametrization.feature_selection_method,
+            dispersion_cutoff=parametrization.dispersion_cutoff,
+            log_sc_cutoff=parametrization.log_sc_cutoff,
+            polynomial_degree=parametrization.polynomial_degree,
         )
 
         self.num_genes = len(selected_genes)

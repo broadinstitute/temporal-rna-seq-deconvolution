@@ -9,20 +9,23 @@ import copy
 import pandas as pd
 import scanpy as sc
 import typing
+import logging
 
 
 class GeneSelector:
-    @staticmethod
-    def rank_genes():
-        pass
-
     @staticmethod
     def select_features(
         bulk_anndata: anndata.AnnData,
         sc_anndata: anndata.AnnData,
         feature_selection_method: str,
         dispersion_cutoff: int = 5,
+        log_sc_cutoff: int = 2,
+        polynomial_degree: int = 2,
     ) -> typing.List[str]:
+
+        logging.info(f"Selecting genes with method: {feature_selection_method}")
+
+        print(f"log_sc_cutoff: {log_sc_cutoff}")
 
         selected_genes = ()
 
@@ -46,8 +49,6 @@ class GeneSelector:
 
         elif feature_selection_method == "overdispersed_bulk_and_high_sc":
             # Fit polynomial degree
-            polynomial_degree = 2
-            sc_cutoff = 2  # log scale
 
             # Select overdispersed in bulk
             x_train = np.log(bulk_anndata.X.mean(0) + 1)  # log_mu_g
@@ -68,7 +69,7 @@ class GeneSelector:
             # Select highly-expressed in single-cell
 
             selected_genes_sc = set(
-                sc_anndata.var.index[np.log(sc_anndata.X.sum(0) + 1) > sc_cutoff]
+                sc_anndata.var.index[np.log(sc_anndata.X.sum(0) + 1) > log_sc_cutoff]
             )
 
             selected_genes = list(selected_genes_bulk.intersection(selected_genes_sc))

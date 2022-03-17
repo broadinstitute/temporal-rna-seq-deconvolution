@@ -2,6 +2,15 @@ import torch
 import numpy as np
 
 
+class DeconvolutionDatatypeParametrization:
+    """Parametrization for datatypes of model"""
+
+    def __init__(self, device=None, dtype=None, dtype_np=None):
+        self.device = torch.device("cuda:0") if device is None else device
+        self.dtype = torch.float32 if dtype is None else dtype
+        self.dtype_np = np.float32 if dtype_np is None else dtype_np
+
+
 class TimeRegularizedDeconvolutionModelParametrization:
     def __init__(self):
         # Prior
@@ -21,9 +30,6 @@ class TimeRegularizedDeconvolutionModelParametrization:
 
 class TimeRegularizedDeconvolutionGPParametrization:
     def __init__(self):
-
-        self._num_inducing_points = 10  # This is not used
-
         self.init_rbf_kernel_lengthscale = 0.5
         self.init_rbf_kernel_variance = 0.5
         self.init_whitenoise_kernel_variance = 0.1
@@ -58,6 +64,10 @@ class DeconvolutionDatasetParametrization:
         self.hypercluster_do_preproc = True
         self.hypercluster_verbose = True
 
+        self.dispersion_cutoff: int = 5
+        self.log_sc_cutoff: int = 2
+        self.polynomial_degree: int = 2
+
     @property
     def hypercluster_params(self):
         """The hyperclustering parameters as a dictionary"""
@@ -70,12 +80,3 @@ class DeconvolutionDatasetParametrization:
             "do_preproc": self.hypercluster_do_preproc,
             "verbose": self.hypercluster_verbose,
         }
-
-
-class DeconvolutionDatatypeParametrization:
-    """Parametrization for datatypes of model"""
-
-    def __init__(self, device=None, dtype=None, dtype_np=None):
-        self.device = torch.device("cuda:0") if device is None else device
-        self.dtype = torch.float32 if dtype is None else dtype
-        self.dtype_np = np.float32 if dtype_np is None else dtype_np

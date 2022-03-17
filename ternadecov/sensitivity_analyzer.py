@@ -41,6 +41,7 @@ class SensitivityAnalyzer:
             clear_param_store=True,
         )
 
+        # TODO: Save more information here
         traj = model.population_proportion_model.get_composition_trajectories(
             model.dataset, n_intervals=100
         )
@@ -50,18 +51,22 @@ class SensitivityAnalyzer:
     @staticmethod
     def scan_parameter(
         parameter,
-        sc_anndata,
-        bulk_anndata,
+        # sc_anndata,
+        # bulk_anndata,
+        dataset_param: DeconvolutionDatasetParametrization,
         datatype_param,
         parameter_type="model",
         parameter_variable_type="continuous",
         start=None,
         end=None,
         num=None,
-        discrete_values=None,
+        discrete_values: typing.List[str] = None,
+        model_param: TimeRegularizedDeconvolutionModelParametrization = None,
+        trajectory_param: TimeRegularizedDeconvolutionGPParametrization = None,
         n_iters=10_000,
     ):
         """Scan the defined parameter with values in the specified range and save results"""
+
         results = {}
 
         if parameter_variable_type == "continuous":
@@ -81,15 +86,11 @@ class SensitivityAnalyzer:
         for v in param_values:
             logging.info(f"Evaluating with {parameter} = {v} ...")
 
-            # Preparing parameters
-            dataset_param = DeconvolutionDatasetParametrization(
-                sc_anndata=sc_anndata,
-                sc_celltype_col="Subclustering_reduced",
-                bulk_anndata=bulk_anndata,
-                bulk_time_col="dpi_time",
-            )
-            model_param = TimeRegularizedDeconvolutionModelParametrization()
-            trajectory_param = TimeRegularizedDeconvolutionGPParametrization()
+            # Use default parameter sets for model and trajectory if not specified
+            if model_param is None:
+                model_param = TimeRegularizedDeconvolutionModelParametrization()
+            if trajectory_param is None:
+                trajectory_param = TimeRegularizedDeconvolutionGPParametrization()
 
             # Modifying parameters
             if parameter_type == "model":
@@ -121,7 +122,7 @@ class SensitivityAnalyzer:
         keys = list(r.keys())
         n = len(keys)
         nr = math.ceil(math.sqrt(n))
-        nc = math.floor(math.sqrt(n))
+        nc = math.ceil(math.sqrt(n))
 
         fig, ax = matplotlib.pyplot.subplots(nr, nc, figsize=(10, 10))
 
