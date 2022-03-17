@@ -1,3 +1,7 @@
+import torch
+import numpy as np
+
+
 class TimeRegularizedDeconvolutionModelParametrization:
     def __init__(self):
         # Prior
@@ -35,7 +39,13 @@ class TimeRegularizedDeconvolutionGPParametrization:
 
 
 class DeconvolutionDatasetParametrization:
-    def __init__(self):
+    def __init__(self, sc_anndata, sc_celltype_col, bulk_anndata, bulk_time_col):
+        self.sc_anndata = sc_anndata
+        self.sc_celltype_col = sc_celltype_col
+        self.bulk_anndata = bulk_anndata
+        self.bulk_time_col = bulk_time_col
+
+        # Other params
         self.feature_selection_method = "common"
         self.verbose = True
 
@@ -50,6 +60,7 @@ class DeconvolutionDatasetParametrization:
 
     @property
     def hypercluster_params(self):
+        """The hyperclustering parameters as a dictionary"""
         return {
             "min_new_cluster_size": self.hypercluster_min_new_cluster_size,
             "min_cells_recluster": self.hypercluster_min_cells_recluster,
@@ -59,3 +70,12 @@ class DeconvolutionDatasetParametrization:
             "do_preproc": self.hypercluster_do_preproc,
             "verbose": self.hypercluster_verbose,
         }
+
+
+class DeconvolutionDatatypeParametrization:
+    """Parametrization for datatypes of model"""
+
+    def __init__(self, device=None, dtype=None, dtype_np=None):
+        self.device = torch.device("cuda:0") if device is None else device
+        self.dtype = torch.float32 if dtype is None else dtype
+        self.dtype_np = np.float32 if dtype_np is None else dtype_np

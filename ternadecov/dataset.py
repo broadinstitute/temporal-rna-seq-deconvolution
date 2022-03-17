@@ -97,35 +97,21 @@ class DeconvolutionDataset:
 
     def __init__(
         self,
-        sc_anndata: anndata.AnnData,
-        sc_celltype_col: str,
-        bulk_anndata: anndata.AnnData,
-        bulk_time_col: str,
-        dtype_np: np.dtype,
-        dtype: torch.dtype,
-        device: torch.device,
-        ## Parametrization Object
-        # feature_selection_method: str = "common",
-        # hypercluster=False,
-        # hypercluster_params={
-        #     "min_new_cluster_size": 100,
-        #     "min_cells_recluster": 1000,
-        #     "return_anndata": False,
-        #     "subcluster_resolution": 1,
-        #     "type": "louvain",
-        #     "do_preproc": True,
-        #     "verbose": True,
-        # },
-        # verbose=True,
-        ###
-        parametrization,
+        # sc_anndata: anndata.AnnData,
+        # sc_celltype_col: str,
+        # bulk_anndata: anndata.AnnData,
+        # bulk_time_col: str,
+        types: DeconvolutionDatatypeParametrization,
+        parametrization: DeconvolutionDatasetParametrization,
     ):
 
-        self.sc_celltype_col = sc_celltype_col
-        self.bul_time_col = bulk_time_col
-        self.dtype_np = dtype_np
-        self.dtype = dtype
-        self.device = device
+        self.sc_celltype_col = parametrization.sc_celltype_col
+        self.bul_time_col = parametrization.bulk_time_col
+
+        self.dtype_np = types.dtype_np
+        self.dtype = types.dtype
+        self.device = types.device
+
         self.selected_genes = ()
         self.verbose = parametrization.verbose
 
@@ -135,8 +121,8 @@ class DeconvolutionDataset:
         # Select common genes and subset/order anndata objects
         # TODO: Issue warning if too many genes removed
         selected_genes = self.__select_features(
-            bulk_anndata,
-            sc_anndata,
+            parametrization.bulk_anndata,
+            parametrization.sc_anndata,
             feature_selection_method=parametrization.feature_selection_method,
         )
 
@@ -146,19 +132,19 @@ class DeconvolutionDataset:
 
         # Subset the single cell AnnData object
         # self.sc_anndata = sc_anndata[:, sc_anndata.var.index.isin(selected_genes)]
-        self.sc_anndata = sc_anndata[:, selected_genes]
+        self.sc_anndata = parametrization.sc_anndata[:, selected_genes]
 
         # Subset the bulk object
         # self.bulk_anndata = bulk_anndata[:, sc_anndata.var.index.isin(selected_genes)]
-        self.bulk_anndata = bulk_anndata[:, selected_genes]
+        self.bulk_anndata = parametrization.bulk_anndata[:, selected_genes]
 
         # Perform hyper clustering
         if parametrization.hypercluster:
 
             self.is_hyperclustered = True
             self.hypercluster_results = hypercluster_anndata(
-                anndata_obj=sc_anndata,
-                original_clustering_name=sc_celltype_col,
+                anndata_obj=parametrization.sc_anndata,
+                original_clustering_name=parametrization.sc_celltype_col,
                 **hypercluster_params,
             )
 
@@ -168,9 +154,9 @@ class DeconvolutionDataset:
             self.sc_celltype_col = "hypercluster"
 
         # Pre-process time values and save inverse function
-        self.dpi_time_original_m = self.bulk_anndata.obs[bulk_time_col].values.astype(
-            dtype_np
-        )
+        self.dpi_time_original_m = self.bulk_anndata.obs[
+            parametrization.bulk_time_col
+        ].values.astype(self.dtype_np)
         self.time_min = np.min(self.dpi_time_original_m)
         self.time_range = np.max(self.dpi_time_original_m) - self.time_min
         self.dpi_time_m = (self.dpi_time_original_m - self.time_min) / self.time_range

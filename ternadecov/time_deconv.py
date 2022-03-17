@@ -52,8 +52,7 @@ class TimeRegularizedDeconvolutionModel:
     def __init__(
         self,
         dataset: DeconvolutionDataset,
-        device: torch.device,
-        dtype: torch.dtype,
+        types: DeconvolutionDatatypeParametrization,
         use_betas: bool = True,
         trajectory_model_type: str = "polynomial",
         hyperparameters=None,
@@ -61,11 +60,14 @@ class TimeRegularizedDeconvolutionModel:
         **kwargs,
     ):
         if hyperparameters is None:
+            logging.warning("Model parametrization not provided, using default")
             hyperparameters = TimeRegularizedDeconvolutionModelParametrization()
 
         self.dataset = dataset
-        self.device = device
-        self.dtype = dtype
+
+        self.device = types.device
+        self.dtype = types.dtype
+
         self.use_betas = use_betas
         self.trajectory_model_type = trajectory_model_type
 
@@ -89,20 +91,22 @@ class TimeRegularizedDeconvolutionModel:
                 num_cell_types=self.dataset.num_cell_types,
                 num_samples=self.dataset.num_samples,
                 init_posterior_global_scale_factor=self.init_posterior_global_scale_factor,
-                device=device,
-                dtype=dtype,
+                device=self.device,
+                dtype=self.dtype,
             )
         elif trajectory_model_type == "gp":
             if trajectory_hyperparameters is None:
-                raise ValueError()
+                raise ValueError(
+                    "Trajectory model GP requires trajectory_hyperparameters to be set"
+                )
 
             self.population_proportion_model = VGPTrajectoryModule(
                 xi_mq=self.dataset.t_m[..., None].contiguous(),
                 num_cell_types=self.dataset.num_cell_types,
                 init_posterior_global_scale_factor=self.init_posterior_global_scale_factor,
                 parametrization=trajectory_hyperparameters,
-                device=device,
-                dtype=dtype,
+                device=self.device,
+                dtype=self.dtype,
             )
 
         else:
@@ -114,7 +118,9 @@ class TimeRegularizedDeconvolutionModel:
         self.log_phi_posterior_scale = hyperparameters.log_phi_posterior_scale
 
         # cache useful tensors
-        self.w_hat_gc = torch.tensor(self.dataset.w_hat_gc, device=device, dtype=dtype)
+        self.w_hat_gc = torch.tensor(
+            self.dataset.w_hat_gc, device=self.device, dtype=self.dtype
+        )
 
     def model(
         self, x_mg: torch.Tensor, t_m: torch.Tensor,
