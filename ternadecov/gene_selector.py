@@ -93,6 +93,8 @@ class GeneSelector:
                 selected_genes_sc.intersection(set(list(bulk_anndata.var.index)))
             )
         else:
-            raise ValueError()
+            raise ValueError(
+                f"Unknown feature selection method {feature_selection_method}"
+            )
 
         return selected_genes

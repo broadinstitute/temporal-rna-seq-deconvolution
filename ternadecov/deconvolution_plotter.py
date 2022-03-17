@@ -32,6 +32,46 @@ class DeconvolutionPlotter:
     def __init__(self, deconvolution):
         self.deconvolution = deconvolution
 
+    def plot_gp_composition_trajectories(self, n_samples=500):
+        with torch.no_grad():
+            traj = self.deconvolution.population_proportion_model
+            xi_new_nq = torch.linspace(
+                0.0,
+                1.0,
+                n_samples,
+                device=self.deconvolution.device,
+                dtype=self.deconvolution.dtype,
+            )[..., None]
+            f_new_loc_cn, f_new_var_cn = traj.gp.forward(xi_new_nq, full_cov=False)
+            f_new_scale_cn = f_new_var_cn.sqrt()
+            f_new_sampled_scn = torch.distributions.Normal(
+                f_new_loc_cn, f_new_scale_cn
+            ).sample([n_samples])
+
+            pi_new_sampled_scn = torch.softmax(f_new_sampled_scn, dim=1)
+            # pi_new_loc_cn = torch.softmax(f_new_loc_cn, dim=0)
+
+            plotrange_kcn = torch.quantile(
+                pi_new_sampled_scn, torch.Tensor([0.25, 0.5, 0.75]).cuda(), 0
+            ).cpu()
+
+        n_celltypes = plotrange_kcn.shape[1]
+        nrow = math.ceil(math.sqrt(n_celltypes))
+        ncol = math.ceil(math.sqrt(n_celltypes))
+
+        fig, ax = matplotlib.pyplot.subplots(nrow, ncol, figsize=(10, 8))
+
+        # TODO: Add colors, add titles
+        for i in range(n_celltypes):
+            ax[i // nrow, i % nrow].fill_between(
+                xi_new_nq.cpu().numpy()[:, 0],
+                plotrange_kcn[0, i, :].numpy().T,
+                plotrange_kcn[2, i].numpy().T,
+            )
+            ax[i // nrow, i % nrow].plot(
+                xi_new_nq.cpu().numpy(), plotrange_kcn[1, i].cpu().numpy().T, c="black"
+            )
+
     def plot_sample_compositions_boxplot_confidence(
         self, n_draws=100, verbose=False, figsize=(20, 15), dpi=80, spacing=1
     ):

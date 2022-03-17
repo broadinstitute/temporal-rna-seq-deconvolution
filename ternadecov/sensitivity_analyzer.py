@@ -51,8 +51,6 @@ class SensitivityAnalyzer:
     @staticmethod
     def scan_parameter(
         parameter,
-        # sc_anndata,
-        # bulk_anndata,
         dataset_param: DeconvolutionDatasetParametrization,
         datatype_param,
         parameter_type="model",
@@ -84,6 +82,7 @@ class SensitivityAnalyzer:
 
         # evaluation loop
         for v in param_values:
+            pyro.clear_param_store()
             logging.info(f"Evaluating with {parameter} = {v} ...")
 
             # Use default parameter sets for model and trajectory if not specified

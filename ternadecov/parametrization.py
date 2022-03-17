@@ -45,14 +45,21 @@ class TimeRegularizedDeconvolutionGPParametrization:
 
 
 class DeconvolutionDatasetParametrization:
-    def __init__(self, sc_anndata, sc_celltype_col, bulk_anndata, bulk_time_col):
+    def __init__(
+        self,
+        sc_anndata,
+        sc_celltype_col,
+        bulk_anndata,
+        bulk_time_col,
+        feature_selection_method="overdispersed_bulk_and_high_sc",
+    ):
         self.sc_anndata = sc_anndata
         self.sc_celltype_col = sc_celltype_col
         self.bulk_anndata = bulk_anndata
         self.bulk_time_col = bulk_time_col
 
         # Other params
-        self.feature_selection_method = "overdispersed_bulk_and_high_sc"
+        self.feature_selection_method = feature_selection_method
         self.verbose = True
 
         self.hypercluster = False
