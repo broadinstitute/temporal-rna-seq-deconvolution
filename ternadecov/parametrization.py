@@ -46,7 +46,7 @@ class DeconvolutionDatasetParametrization:
         self.bulk_time_col = bulk_time_col
 
         # Other params
-        self.feature_selection_method = "common"
+        self.feature_selection_method = "overdispersed_bulk_and_high_sc"
         self.verbose = True
 
         self.hypercluster = False

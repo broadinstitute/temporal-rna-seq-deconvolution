@@ -389,15 +389,7 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
 
         assert xi_mq.ndim == 2
         self.num_samples, self.covariate_n_dim = xi_mq.shape
-
-        # # todo: pull up to __init__ signature
-        # self.num_inducing_points = 10  # 10 50 100
-        # self.init_rbf_kernel_lengthscale = 0.5 # .1, 1
-        # self.init_rbf_kernel_variance = 0.5 # .1, 1
-        # self.init_whitenoise_kernel_variance = 0.1 # .1, , 1/2,  1
-        # self.gp_cholesky_jitter = 1e-4
-
-        self.num_inducing_points = parametrization.num_inducing_points
+        # self.num_inducing_points = parametrization.num_inducing_points
         self.init_rbf_kernel_lengthscale = parametrization.init_rbf_kernel_lengthscale
         self.init_rbf_kernel_variance = parametrization.init_rbf_kernel_variance
         self.init_whitenoise_kernel_variance = (
@@ -442,12 +434,6 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
             assert xi_nq.shape[-1] == self.covariate_n_dim
             batch_size = xi_nq.shape[0]
             return self.gp_f_mean_c[..., None].expand([self.num_cell_types, batch_size])
-
-        # initial position for the inducing points
-        x_mean, x_std = torch.mean(self.xi_mq).item(), torch.std(self.xi_mq).item()
-        self.Xu_init = x_mean + x_std * torch.randn(
-            self.num_inducing_points, self.covariate_n_dim, device=device, dtype=dtype
-        )
 
         # instantiate VGP model
         self.gp = VariationalGP(

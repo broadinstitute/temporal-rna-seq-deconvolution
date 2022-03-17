@@ -6,6 +6,8 @@ from ternadecov.parametrization import *
 
 
 class SensitivityAnalyzer:
+    """Container class for static methods pertaining to parameter sensitivity analysis"""
+
     @staticmethod
     def evaluate_deconvolution(
         sc_anndata,
@@ -47,7 +49,7 @@ class SensitivityAnalyzer:
         )
 
         traj = model.population_proportion_model.get_composition_trajectories(
-            pseudo_time_reg_deconv.dataset, n_intervals=100
+            model.dataset, n_intervals=100
         )
 
         return traj
@@ -64,7 +66,7 @@ class SensitivityAnalyzer:
         parameter_type="model",
         n_iters=10_000,
     ):
-
+        """Scan the defined parameter with values in the specified range and save results"""
         results = {}
 
         for i, v in enumerate(np.linspace(start, end, num)):
@@ -93,6 +95,8 @@ class SensitivityAnalyzer:
 
     @staticmethod
     def plot_scan_trajectories(results, variable):
+        """Plot the results of scan_parameter"""
+
         r = results[variable]
 
         keys = list(r.keys())

@@ -34,6 +34,7 @@ from ternadecov.simulator import *
 from ternadecov.stats_helpers import *
 from ternadecov.hypercluster import *
 from ternadecov.parametrization import *
+from ternadecov.gene_selector import *
 
 
 class SingleCellDataset:
@@ -97,10 +98,6 @@ class DeconvolutionDataset:
 
     def __init__(
         self,
-        # sc_anndata: anndata.AnnData,
-        # sc_celltype_col: str,
-        # bulk_anndata: anndata.AnnData,
-        # bulk_time_col: str,
         types: DeconvolutionDatatypeParametrization,
         parametrization: DeconvolutionDatasetParametrization,
     ):
@@ -118,9 +115,7 @@ class DeconvolutionDataset:
         ## Hypercluster related
         self.is_hyperclustered = parametrization.hypercluster
 
-        # Select common genes and subset/order anndata objects
-        # TODO: Issue warning if too many genes removed
-        selected_genes = self.__select_features(
+        selected_genes = GeneSelector.select_features(
             parametrization.bulk_anndata,
             parametrization.sc_anndata,
             feature_selection_method=parametrization.feature_selection_method,
@@ -131,11 +126,9 @@ class DeconvolutionDataset:
             print(f"{self.num_genes} genes selected")
 
         # Subset the single cell AnnData object
-        # self.sc_anndata = sc_anndata[:, sc_anndata.var.index.isin(selected_genes)]
         self.sc_anndata = parametrization.sc_anndata[:, selected_genes]
 
         # Subset the bulk object
-        # self.bulk_anndata = bulk_anndata[:, sc_anndata.var.index.isin(selected_genes)]
         self.bulk_anndata = parametrization.bulk_anndata[:, selected_genes]
 
         # Perform hyper clustering
@@ -160,82 +153,6 @@ class DeconvolutionDataset:
         self.time_min = np.min(self.dpi_time_original_m)
         self.time_range = np.max(self.dpi_time_original_m) - self.time_min
         self.dpi_time_m = (self.dpi_time_original_m - self.time_min) / self.time_range
-
-    def __select_features(
-        self, bulk_anndata, sc_anndata, feature_selection_method, dispersion_cutoff=5
-    ):
-
-        if feature_selection_method == "common":
-            self.selected_genes = list(
-                set(bulk_anndata.var.index).intersection(set(sc_anndata.var.index))
-            )
-        elif feature_selection_method == "overdispersed_bulk":
-            x_train = np.log(bulk_anndata.X.mean(0) + 1)  # log_mu_g
-            y_train = np.log(bulk_anndata.X.var(0) + 1)  # log_sigma_g
-
-            X_train = x_train[:, np.newaxis]
-            degree = 3
-            model = make_pipeline(PolynomialFeatures(degree), Ridge(alpha=1e-3))
-            model.fit(X_train, y_train)
-            y_pred = model.predict(X_train)
-
-            # Select Genes
-            sel_over = (y_train - y_pred > 0.0) & (y_train > dispersion_cutoff)
-            self.selected_genes = list(bulk_anndata.var.index[sel_over])
-
-        elif feature_selection_method == "overdispersed_bulk_and_high_sc":
-            # Fit polynomial degree
-            polynomial_degree = 2
-            sc_cutoff = 2  # log scale
-
-            # Select overdispersed in bulk
-            x_train = np.log(bulk_anndata.X.mean(0) + 1)  # log_mu_g
-            y_train = np.log(bulk_anndata.X.var(0) + 1)  # log_sigma_g
-
-            X_train = x_train[:, np.newaxis]
-
-            model = make_pipeline(
-                PolynomialFeatures(polynomial_degree), Ridge(alpha=1e-3)
-            )
-            model.fit(X_train, y_train)
-            y_pred = model.predict(X_train)
-
-            # Select Genes
-            sel_over_bulk = (y_train - y_pred > 0.0) & (y_train > dispersion_cutoff)
-            selected_genes_bulk = set(bulk_anndata.var.index[sel_over_bulk])
-
-            # Select highly-expressed in single-cell
-
-            selected_genes_sc = set(
-                sc_anndata.var.index[np.log(sc_anndata.X.sum(0) + 1) > sc_cutoff]
-            )
-
-            self.selected_genes = list(
-                selected_genes_bulk.intersection(selected_genes_sc)
-            )
-        elif feature_selection_method == "single_cell_od":
-            ann_data_working = sc_anndata.copy()
-
-            sc.pp.filter_cells(ann_data_working, min_genes=200)
-            sc.pp.filter_genes(ann_data_working, min_cells=3)
-            sc.pp.normalize_total(ann_data_working, target_sum=1e4)
-            sc.pp.log1p(ann_data_working)
-            sc.pp.highly_variable_genes(
-                ann_data_working, min_mean=0.0125, max_mean=3, min_disp=0.5
-            )
-            selected_genes_sc = set(
-                ann_data_working.var.highly_variable.index[
-                    ann_data_working.var.highly_variable
-                ]
-            )
-
-            self.selected_genes = list(
-                selected_genes_sc.intersection(set(list(bulk_anndata.var.index)))
-            )
-        else:
-            raise ValueError()
-
-        return self.selected_genes
 
     @property
     def cell_type_str_list(self) -> List[str]:
