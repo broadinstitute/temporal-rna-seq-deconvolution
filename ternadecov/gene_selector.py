@@ -1,38 +1,29 @@
 import numpy as np
-import matplotlib
-import matplotlib.pyplot
-from torch.distributions import constraints
 import torch
-import pyro
-from pyro.infer import SVI, Trace_ELBO
-from typing import List, Dict
-import pyro.distributions as dist
 import anndata
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
 import math
-import tqdm
 import copy
-from matplotlib.pyplot import cm
 import pandas as pd
-import seaborn as sns
-import time
 import scanpy as sc
+import typing
 
-class GeneSelector():
+
+class GeneSelector:
     @staticmethod
-    def rank_genes
-    
-    
+    def rank_genes():
+        pass
+
     @staticmethod
     def select_features(
-        bulk_anndata: AnnData,
-        sc_anndata: AnnData, 
-        feature_selection_method:str , 
-        dispersion_cutoff= 5:int
+        bulk_anndata: anndata.AnnData,
+        sc_anndata: anndata.AnnData,
+        feature_selection_method: str,
+        dispersion_cutoff: int = 5,
     ) -> typing.List[str]:
-        
+
         selected_genes = ()
 
         if feature_selection_method == "common":
@@ -80,9 +71,7 @@ class GeneSelector():
                 sc_anndata.var.index[np.log(sc_anndata.X.sum(0) + 1) > sc_cutoff]
             )
 
-            selected_genes = list(
-                selected_genes_bulk.intersection(selected_genes_sc)
-            )
+            selected_genes = list(selected_genes_bulk.intersection(selected_genes_sc))
         elif feature_selection_method == "single_cell_od":
             ann_data_working = sc_anndata.copy()
 
