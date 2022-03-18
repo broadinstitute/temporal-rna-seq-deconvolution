@@ -158,6 +158,8 @@ class DeconvolutionPlotter:
         fig.show()
         fig.tight_layout()
 
+        
+
     def plot_sample_compositions_boxplot(self, figsize=(16, 9)):
         figsize = (16, 9)
 
@@ -187,10 +189,7 @@ class DeconvolutionPlotter:
             r_i = int(i // n_rows)
             c_i = int(i % n_rows)
 
-            t = (
-                t_m[sort_order] * self.deconvolution.dataset.time_range
-                + self.deconvolution.dataset.time_min
-            )
+            t = t_m[sort_order] * self.deconvolution.dataset.time_range + self.deconvolution.dataset.time_min
             prop = cell_pop[sort_order, i].clone().detach().cpu()
             labels = self.deconvolution.dataset.cell_type_str_list[i]
 
@@ -202,5 +201,31 @@ class DeconvolutionPlotter:
             ax[c_i, r_i].set_title(self.deconvolution.dataset.cell_type_str_list[i])
 
         matplotlib.pyplot.tight_layout()
+
+        return ax
+
+    def plot_phi_g_distribution(self) -> matplotlib.axes.Axes:
+        """Plot the distribution of phi_g from the param_store"""
+        
+        phi_g = pyro.param("log_phi_posterior_loc_g").clone().detach().exp().cpu()
+        
+        fig, ax = matplotlib.pyplot.subplots()
+        
+        ax.hist(phi_g.numpy(), bins=100)
+        ax.set_xlabel("$\phi_g$")
+        ax.set_ylabel("Counts")
+
+        return ax
+
+    def plot_beta_g_distribution(self) -> matplotlib.axes.Axes:
+        """Plot distribution of beta_g from the param_store"""
+
+        beta_g = pyro.param("log_beta_posterior_loc_g").clone().detach().exp().cpu()
+        
+        fig, ax = matplotlib.pyplot.subplots()
+        
+        ax.hist(beta_g.numpy(), bins=100)
+        ax.set_xlabel("$beta_g$")
+        ax.set_ylabel("Counts")
 
         return ax

@@ -361,26 +361,7 @@ class TimeRegularizedDeconvolutionModel:
                 ax.set_xlabel("Time")
                 ax.legend(self.dataset.cell_type_str_list, loc="best", fontsize="small")
 
-    def plot_phi_g_distribution(self):
-        """Plot the distribution of phi_g"""
-        phi_g = pyro.param("log_phi_posterior_loc_g").clone().detach().exp().cpu()
-        fig, ax = matplotlib.pyplot.subplots()
-        ax.hist(phi_g.numpy(), bins=100)
-        ax.set_xlabel("$\phi_g$")
-        ax.set_ylabel("Counts")
 
-        return ax
-
-    def plot_beta_g_distribution(self):
-        """Plot distribution of beta_g"""
-
-        beta_g = pyro.param("log_beta_posterior_loc_g").clone().detach().exp().cpu()
-        fig, ax = matplotlib.pyplot.subplots()
-        ax.hist(beta_g.numpy(), bins=100)
-        ax.set_xlabel("$beta_g$")
-        ax.set_ylabel("Counts")
-
-        return ax
 
     def write_sample_compositions(self, csv_filename, ignore_hypercluster=False):
         """Write sample composition to csv file"""
