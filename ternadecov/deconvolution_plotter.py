@@ -26,10 +26,11 @@ from ternadecov.stats_helpers import *
 from ternadecov.hypercluster import *
 from ternadecov.dataset import *
 from ternadecov.trajectories import *
+from ternadecov.time_deconv import *
 
 
 class DeconvolutionPlotter:
-    def __init__(self, deconvolution):
+    def __init__(self, deconvolution: TimeRegularizedDeconvolutionModel):
         self.deconvolution = deconvolution
 
     def plot_gp_composition_trajectories(self, n_samples=500):
@@ -156,3 +157,50 @@ class DeconvolutionPlotter:
 
         fig.show()
         fig.tight_layout()
+
+    def plot_sample_compositions_boxplot(self, figsize=(16, 9)):
+        figsize = (16, 9)
+
+        # todo: not clear if this is even needed
+        if self.deconvolution.trajectory_model_type == "polynomial":
+            cell_pop = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
+        elif self.deconvolution.trajectory_model_type == "gp":
+            cell_pop = (
+                self.deconvolution.population_proportion_model.guide(torch.Tensor([]))
+                .clone()
+                .detach()
+                .cpu()
+            )
+
+        t_m = self.deconvolution.dataset.t_m.clone().detach().cpu()
+
+        sort_order = torch.argsort(self.deconvolution.dataset.t_m)
+
+        n_cell_types = cell_pop.shape[1]
+
+        n_rows = math.ceil(math.sqrt(n_cell_types))
+        n_cols = math.ceil(n_cell_types / n_rows)
+
+        fig, ax = matplotlib.pyplot.subplots(n_rows, n_cols, figsize=figsize)
+
+        for i in range(cell_pop.shape[1]):
+            r_i = int(i // n_rows)
+            c_i = int(i % n_rows)
+
+            t = (
+                t_m[sort_order] * self.deconvolution.dataset.time_range
+                + self.deconvolution.dataset.time_min
+            )
+            prop = cell_pop[sort_order, i].clone().detach().cpu()
+            labels = self.deconvolution.dataset.cell_type_str_list[i]
+
+            df1 = pd.DataFrame({"time": t, "proportion": prop,})
+
+            sns.boxplot(
+                x="time", y="proportion", data=df1, ax=ax[c_i, r_i], color=cm.tab10(i)
+            )
+            ax[c_i, r_i].set_title(self.deconvolution.dataset.cell_type_str_list[i])
+
+        matplotlib.pyplot.tight_layout()
+
+        return ax
