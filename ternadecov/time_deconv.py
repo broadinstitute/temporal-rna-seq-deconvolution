@@ -193,7 +193,7 @@ class TimeRegularizedDeconvolutionModel:
                 obs=x_mg,
             )
 
-    def delta_guide(self, x_mg: torch.Tensor, t_m: torch.Tensor):
+    def guide(self, x_mg: torch.Tensor, t_m: torch.Tensor):
         """Simple delta guide"""
 
         # variational parameters for log_phi_g
@@ -247,7 +247,7 @@ class TimeRegularizedDeconvolutionModel:
         self.param_store_hist = []
 
         svi = SVI(
-            model=self.model, guide=self.delta_guide, optim=optim, loss=Trace_ELBO()
+            model=self.model, guide=self.guide, optim=optim, loss=Trace_ELBO()
         )
 
         start_time = time.time()
@@ -273,103 +273,8 @@ class TimeRegularizedDeconvolutionModel:
                         f"[step: {i_iter}, time: {math.ceil(time.time() - start_time)} s ] loss: {self.loss_hist[-1]:.2f}"
                     )
 
-    def plot_loss(self):
-        """Plot the losses during training"""
-        fig, ax = matplotlib.pyplot.subplots()
-        ax.plot(self.loss_hist)
-        ax.set_title("Losses")
-        ax.set_xlabel("iteration")
-        ax.set_ylabel("ELBO Loss")
-
-        return ax
-
-    def plot_composition_trajectories(self, show_hypercluster=False, **kwargs):
-        """Plot the composition trajectories"""
-
-        if "show_sampled_trajectories" in kwargs.keys():
-
-            if self.dataset.is_hyperclustered and not show_hypercluster:
-                raise NotImplementedError
-
-            else:
-                # TODO: Fix x axis scale
-
-                n_samples = kwargs["n_samples"]
-
-                with torch.no_grad():
-                    traj = self.population_proportion_model
-                    xi_new_nq = torch.linspace(
-                        0.0, 1.0, n_samples, device=self.device, dtype=self.dtype
-                    )[..., None]
-                    f_new_loc_cn, f_new_var_cn = traj.gp.forward(
-                        xi_new_nq, full_cov=False
-                    )
-                    f_new_scale_cn = f_new_var_cn.sqrt()
-                    f_new_sampled_scn = torch.distributions.Normal(
-                        f_new_loc_cn, f_new_scale_cn
-                    ).sample([n_samples])
-                    pi_new_sampled_scn = torch.softmax(f_new_sampled_scn, dim=1)
-                    pi_new_loc_cn = torch.softmax(f_new_loc_cn, dim=0)
-
-                fig, ax = matplotlib.pyplot.subplots(figsize=(10, 8))
-
-                # plot the mean trajectory
-                ax.plot(xi_new_nq.cpu().numpy(), pi_new_loc_cn.cpu().numpy().T)
-
-                # plot samples
-                prop_cycle = matplotlib.pyplot.rcParams["axes.prop_cycle"]
-                colors = prop_cycle.by_key()["color"]
-                for i_cell_type in range(pi_new_loc_cn.shape[0]):
-                    color = colors[i_cell_type]
-                    ax.scatter(
-                        x=xi_new_nq.expand((n_samples,) + xi_new_nq.shape)
-                        .cpu()
-                        .numpy()
-                        .flatten(),
-                        y=pi_new_sampled_scn[:, i_cell_type, :].cpu().numpy().flatten(),
-                        c=color,
-                        alpha=0.1,
-                        s=0.5,
-                    )
-
-        else:
-            traj = self.population_proportion_model.get_composition_trajectories(
-                self.dataset, n_intervals=100
-            )
-
-            if self.dataset.is_hyperclustered and not show_hypercluster:
-                fig, ax = matplotlib.pyplot.subplots()
-                ax.plot(
-                    traj["true_times_z"], traj["summarized_composition_rt"].T,
-                )
-                ax.set_title("Predicted cell proportions")
-                ax.set_xlabel("Time")
-
-                labels = []
-
-                r = traj["toplevel_cell_map"]
-                map_r = {r[k]: k for k in r}
-                for i in range(len(map_r)):
-                    labels.append(map_r[i])
-                ax.legend(labels, loc="best", fontsize="small")
-            else:
-                fig, ax = matplotlib.pyplot.subplots()
-                ax.plot(
-                    traj["true_times_z"], traj["norm_comp_tc"],
-                )
-                ax.set_title("Predicted cell proportions")
-                ax.set_xlabel("Time")
-                ax.legend(self.dataset.cell_type_str_list, loc="best", fontsize="small")
 
 
-
-    def write_sample_compositions(self, csv_filename, ignore_hypercluster=False):
-        """Write sample composition to csv file"""
-
-        if self.dataset.is_hyperclustered and not ignore_hypercluster:
-            raise NotImplementedError
-        else:
-            self.write_sample_composition_default(csv_filename)
 
     def sample_composition_default(self):
         """Return the sample composition in a pandas DataFrame"""
@@ -390,6 +295,20 @@ class TimeRegularizedDeconvolutionModel:
                 "col_proportion": col_proportion,
             }
         )
+    
+    
+    
+    
+    
+    
+    def write_sample_compositions(self, csv_filename, ignore_hypercluster=False):
+        """Write sample composition to csv file"""
+
+        if self.dataset.is_hyperclustered and not ignore_hypercluster:
+            raise NotImplementedError
+        else:
+            self.write_sample_composition_default(csv_filename)
+
 
     def write_sample_composition_default(self, csv_filename):
         """Write sample composition proportions to csv file
@@ -399,6 +318,22 @@ class TimeRegularizedDeconvolutionModel:
 
         composition_df = self.sample_composition_default()
         composition_df.to_csv(csv_filename)
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
 
     def plot_sample_compositions_scatter(
         self, figsize=(16, 9), ignore_hypercluster=False
@@ -525,3 +460,4 @@ class TimeRegularizedDeconvolutionModel:
         matplotlib.pyplot.tight_layout()
 
         return ax
+
