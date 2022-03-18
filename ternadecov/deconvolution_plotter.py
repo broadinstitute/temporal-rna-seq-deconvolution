@@ -161,8 +161,6 @@ class DeconvolutionPlotter:
         fig.show()
         fig.tight_layout()
 
-        
-
     def plot_sample_compositions_boxplot(self, figsize=(16, 9)):
         figsize = (16, 9)
 
@@ -192,7 +190,10 @@ class DeconvolutionPlotter:
             r_i = int(i // n_rows)
             c_i = int(i % n_rows)
 
-            t = t_m[sort_order] * self.deconvolution.dataset.time_range + self.deconvolution.dataset.time_min
+            t = (
+                t_m[sort_order] * self.deconvolution.dataset.time_range
+                + self.deconvolution.dataset.time_min
+            )
             prop = cell_pop[sort_order, i].clone().detach().cpu()
             labels = self.deconvolution.dataset.cell_type_str_list[i]
 
@@ -209,11 +210,11 @@ class DeconvolutionPlotter:
 
     def plot_phi_g_distribution(self) -> matplotlib.axes.Axes:
         """Plot the distribution of phi_g from the param_store"""
-        
+
         phi_g = pyro.param("log_phi_posterior_loc_g").clone().detach().exp().cpu()
-        
+
         fig, ax = matplotlib.pyplot.subplots()
-        
+
         ax.hist(phi_g.numpy(), bins=100)
         ax.set_xlabel("$\phi_g$")
         ax.set_ylabel("Counts")
@@ -224,28 +225,26 @@ class DeconvolutionPlotter:
         """Plot distribution of beta_g from the param_store"""
 
         beta_g = pyro.param("log_beta_posterior_loc_g").clone().detach().exp().cpu()
-        
+
         fig, ax = matplotlib.pyplot.subplots()
-        
+
         ax.hist(beta_g.numpy(), bins=100)
         ax.set_xlabel("$beta_g$")
         ax.set_ylabel("Counts")
 
         return ax
-    
+
     def plot_loss(self) -> matplotlib.axes.Axes:
         """Plot the losses during training"""
-        
+
         fig, ax = matplotlib.pyplot.subplots()
-        
+
         ax.plot(self.deconvolution.loss_hist)
         ax.set_title("Losses")
         ax.set_xlabel("iteration")
         ax.set_ylabel("ELBO Loss")
 
         return ax
-    
-    
 
     def plot_composition_trajectories(self, show_hypercluster=False, **kwargs):
         """Plot the composition trajectories"""
@@ -263,7 +262,11 @@ class DeconvolutionPlotter:
                 with torch.no_grad():
                     traj = self.deconvolution.population_proportion_model
                     xi_new_nq = torch.linspace(
-                        0.0, 1.0, n_samples, device=self.deconvolution.device, dtype=self.deconvolution.dtype
+                        0.0,
+                        1.0,
+                        n_samples,
+                        device=self.deconvolution.device,
+                        dtype=self.deconvolution.dtype,
                     )[..., None]
                     f_new_loc_cn, f_new_var_cn = traj.gp.forward(
                         xi_new_nq, full_cov=False
@@ -323,4 +326,140 @@ class DeconvolutionPlotter:
                 )
                 ax.set_title("Predicted cell proportions")
                 ax.set_xlabel("Time")
-                ax.legend(self.deconvolution.dataset.cell_type_str_list, loc="best", fontsize="small")
+                ax.legend(
+                    self.deconvolution.dataset.cell_type_str_list,
+                    loc="best",
+                    fontsize="small",
+                )
+
+    def plot_sample_compositions_scatter(
+        self, figsize=(16, 9), ignore_hypercluster=False
+    ):
+        """Plot a facetted scatter plot of the individual sample compositions
+
+        :param figsize: tuple of size 2 with figure size information
+        """
+        if self.deconvolution.dataset.is_hyperclustered and not ignore_hypercluster:
+            self.plot_sample_compositions_scatter_hyperclustered(figsize=figsize)
+        else:
+            self.plot_sample_compositions_scatter_default(figsize=figsize)
+
+    def plot_sample_compositions_scatter_default(self, figsize):
+        """Plot a facetted scatter plot of the individual sample compositions for regular processing
+
+        :param figsize: tuple of size 2 with figure size information
+        """
+        t_m = self.deconvolution.dataset.t_m.clone().detach().cpu()
+
+        if self.deconvolution.trajectory_model_type == "polynomial":
+            cell_pop_mc = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
+        elif self.deconvolution.trajectory_model_type == "gp":
+            cell_pop_mc = (
+                self.deconvolution.population_proportion_model.guide(torch.Tensor([]))
+                .clone()
+                .detach()
+                .cpu()
+            )
+
+        sort_order = torch.argsort(self.deconvolution.dataset.t_m)
+
+        n_cell_types = cell_pop_mc.shape[1]
+
+        n_rows = math.ceil(math.sqrt(n_cell_types))
+        n_cols = math.ceil(n_cell_types / n_rows)
+
+        fig, ax = matplotlib.pyplot.subplots(n_rows, n_cols, figsize=figsize)
+
+        for i in range(cell_pop_mc.shape[1]):
+            r_i = int(i // n_rows)
+            c_i = int(i % n_rows)
+
+            ax[c_i, r_i].scatter(
+                t_m[sort_order] * self.deconvolution.dataset.time_range
+                + self.deconvolution.dataset.time_min,
+                cell_pop_mc[sort_order, i].clone().detach().cpu(),
+                color=cm.tab10(i),
+            )
+            ax[c_i, r_i].set_title(self.deconvolution.dataset.cell_type_str_list[i])
+
+        matplotlib.pyplot.tight_layout()
+
+        return ax
+
+    def plot_sample_compositions_scatter_hyperclustered(self, figsize):
+        """Plot a facetted scatter plot of the individual sample compositions for hyperclustered processing
+
+        :param figsize: tuple of size 2 with figure size information
+        """
+
+        assert self.deconvolution.dataset.is_hyperclustered
+
+        t_m = self.deconvolution.dataset.t_m.clone().detach().cpu()
+
+        if self.deconvolution.trajectory_model_type == "polynomial":
+            cell_pop_mc = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
+        elif self.deconvolution.trajectory_model_type == "gp":
+            cell_pop_mc = (
+                self.deconvolution.population_proportion_model.guide(torch.Tensor([]))
+                .clone()
+                .detach()
+                .cpu()
+            )
+
+        sort_order = torch.argsort(self.deconvolution.dataset.t_m)
+
+        ## Summarise cell_pop_mc to the high-level clusters
+        n_top_level_clusters = len(
+            set(self.deconvolution.dataset.hypercluster_results["cluster_map"].values())
+        )
+        n_low_level_clusters = len(
+            set(self.deconvolution.dataset.hypercluster_results["cluster_map"].keys())
+        )
+        # k is index for  highlevel clusters
+        cell_pop_summarized_mk = torch.zeros(
+            (cell_pop_mc.shape[0], n_top_level_clusters)
+        )
+
+        # Low level cluster names
+        low_cell_type_str_list = self.deconvolution.dataset.cell_type_str_list
+        toplevel_cell_map = self.deconvolution.calculated_trajectories[
+            "toplevel_cell_map"
+        ]
+        high_cell_type_str_list = list(toplevel_cell_map.keys())
+        low_to_high_clustermap = self.deconvolution.dataset.hypercluster_results[
+            "cluster_map"
+        ]
+
+        index = torch.zeros((n_low_level_clusters,), dtype=torch.int64)
+
+        for i_llc in range(n_low_level_clusters):
+            llc_name = low_cell_type_str_list[i_llc]
+            hlc_name = low_to_high_clustermap[llc_name]
+            i_hlcc = high_cell_type_str_list.index(hlc_name)
+            index[i_llc] = i_hlcc
+
+        cell_pop_summarized_mk.index_add_(1, index, cell_pop_mc)
+
+        n_cell_types = cell_pop_summarized_mk.shape[1]
+
+        n_rows = math.ceil(math.sqrt(n_cell_types))
+        n_cols = math.ceil(n_cell_types / n_rows)
+
+        fig, ax = matplotlib.pyplot.subplots(n_rows, n_cols, figsize=figsize)
+
+        for i in range(cell_pop_summarized_mk.shape[1]):
+            r_i = int(i // n_rows)
+            c_i = int(i % n_rows)
+
+            ax[c_i, r_i].scatter(
+                t_m[sort_order] * self.deconvolution.dataset.time_range
+                + self.deconvolution.dataset.time_min,
+                cell_pop_summarized_mk[sort_order, i].clone().detach().cpu(),
+                color=cm.tab10(i),
+            )
+
+            ax[c_i, r_i].set_title(high_cell_type_str_list[i])
+
+        matplotlib.pyplot.tight_layout()
+
+        return ax

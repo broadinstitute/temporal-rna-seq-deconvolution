@@ -246,9 +246,7 @@ class TimeRegularizedDeconvolutionModel:
         self.loss_hist = []
         self.param_store_hist = []
 
-        svi = SVI(
-            model=self.model, guide=self.guide, optim=optim, loss=Trace_ELBO()
-        )
+        svi = SVI(model=self.model, guide=self.guide, optim=optim, loss=Trace_ELBO())
 
         start_time = time.time()
         for i_iter in range(n_iters):
@@ -273,9 +271,6 @@ class TimeRegularizedDeconvolutionModel:
                         f"[step: {i_iter}, time: {math.ceil(time.time() - start_time)} s ] loss: {self.loss_hist[-1]:.2f}"
                     )
 
-
-
-
     def sample_composition_default(self):
         """Return the sample composition in a pandas DataFrame"""
 
@@ -295,12 +290,7 @@ class TimeRegularizedDeconvolutionModel:
                 "col_proportion": col_proportion,
             }
         )
-    
-    
-    
-    
-    
-    
+
     def write_sample_compositions(self, csv_filename, ignore_hypercluster=False):
         """Write sample composition to csv file"""
 
@@ -308,7 +298,6 @@ class TimeRegularizedDeconvolutionModel:
             raise NotImplementedError
         else:
             self.write_sample_composition_default(csv_filename)
-
 
     def write_sample_composition_default(self, csv_filename):
         """Write sample composition proportions to csv file
@@ -318,146 +307,3 @@ class TimeRegularizedDeconvolutionModel:
 
         composition_df = self.sample_composition_default()
         composition_df.to_csv(csv_filename)
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-
-    def plot_sample_compositions_scatter(
-        self, figsize=(16, 9), ignore_hypercluster=False
-    ):
-        """Plot a facetted scatter plot of the individual sample compositions
-
-        :param figsize: tuple of size 2 with figure size information
-        """
-        if self.dataset.is_hyperclustered and not ignore_hypercluster:
-            self.plot_sample_compositions_scatter_hyperclustered(figsize=figsize)
-        else:
-            self.plot_sample_compositions_scatter_default(figsize=figsize)
-
-    def plot_sample_compositions_scatter_default(self, figsize):
-        """Plot a facetted scatter plot of the individual sample compositions for regular processing
-
-        :param figsize: tuple of size 2 with figure size information
-        """
-        t_m = self.dataset.t_m.clone().detach().cpu()
-
-        if self.trajectory_model_type == "polynomial":
-            cell_pop_mc = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
-        elif self.trajectory_model_type == "gp":
-            cell_pop_mc = (
-                self.population_proportion_model.guide(torch.Tensor([]))
-                .clone()
-                .detach()
-                .cpu()
-            )
-
-        sort_order = torch.argsort(self.dataset.t_m)
-
-        n_cell_types = cell_pop_mc.shape[1]
-
-        n_rows = math.ceil(math.sqrt(n_cell_types))
-        n_cols = math.ceil(n_cell_types / n_rows)
-
-        fig, ax = matplotlib.pyplot.subplots(n_rows, n_cols, figsize=figsize)
-
-        for i in range(cell_pop_mc.shape[1]):
-            r_i = int(i // n_rows)
-            c_i = int(i % n_rows)
-
-            ax[c_i, r_i].scatter(
-                t_m[sort_order] * self.dataset.time_range + self.dataset.time_min,
-                cell_pop_mc[sort_order, i].clone().detach().cpu(),
-                color=cm.tab10(i),
-            )
-            ax[c_i, r_i].set_title(self.dataset.cell_type_str_list[i])
-
-        matplotlib.pyplot.tight_layout()
-
-        return ax
-
-    def plot_sample_compositions_scatter_hyperclustered(self, figsize):
-        """Plot a facetted scatter plot of the individual sample compositions for hyperclustered processing
-
-        :param figsize: tuple of size 2 with figure size information
-        """
-
-        assert self.dataset.is_hyperclustered
-
-        t_m = self.dataset.t_m.clone().detach().cpu()
-
-        if self.trajectory_model_type == "polynomial":
-            cell_pop_mc = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
-        elif self.trajectory_model_type == "gp":
-            cell_pop_mc = (
-                self.population_proportion_model.guide(torch.Tensor([]))
-                .clone()
-                .detach()
-                .cpu()
-            )
-
-        sort_order = torch.argsort(self.dataset.t_m)
-
-        ## Summarise cell_pop_mc to the high-level clusters
-        n_top_level_clusters = len(
-            set(self.dataset.hypercluster_results["cluster_map"].values())
-        )
-        n_low_level_clusters = len(
-            set(self.dataset.hypercluster_results["cluster_map"].keys())
-        )
-        # k is index for  highlevel clusters
-        cell_pop_summarized_mk = torch.zeros(
-            (cell_pop_mc.shape[0], n_top_level_clusters)
-        )
-
-        # Low level cluster names
-        low_cell_type_str_list = self.dataset.cell_type_str_list
-        toplevel_cell_map = self.calculated_trajectories["toplevel_cell_map"]
-        high_cell_type_str_list = list(toplevel_cell_map.keys())
-        low_to_high_clustermap = self.dataset.hypercluster_results["cluster_map"]
-
-        index = torch.zeros((n_low_level_clusters,), dtype=torch.int64)
-
-        for i_llc in range(n_low_level_clusters):
-            llc_name = low_cell_type_str_list[i_llc]
-            hlc_name = low_to_high_clustermap[llc_name]
-            i_hlcc = high_cell_type_str_list.index(hlc_name)
-            index[i_llc] = i_hlcc
-
-        cell_pop_summarized_mk.index_add_(1, index, cell_pop_mc)
-
-        n_cell_types = cell_pop_summarized_mk.shape[1]
-
-        n_rows = math.ceil(math.sqrt(n_cell_types))
-        n_cols = math.ceil(n_cell_types / n_rows)
-
-        fig, ax = matplotlib.pyplot.subplots(n_rows, n_cols, figsize=figsize)
-
-        for i in range(cell_pop_summarized_mk.shape[1]):
-            r_i = int(i // n_rows)
-            c_i = int(i % n_rows)
-
-            ax[c_i, r_i].scatter(
-                t_m[sort_order] * self.dataset.time_range + self.dataset.time_min,
-                cell_pop_summarized_mk[sort_order, i].clone().detach().cpu(),
-                color=cm.tab10(i),
-            )
-
-            ax[c_i, r_i].set_title(high_cell_type_str_list[i])
-
-        matplotlib.pyplot.tight_layout()
-
-        return ax
-
