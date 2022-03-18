@@ -1,40 +1,20 @@
 import sys
 import numpy as np
-import matplotlib
-import matplotlib.pyplot
-from torch.distributions import constraints
 import torch
-import pyro
-from pyro.infer import SVI, Trace_ELBO
 from typing import List, Dict
-import pyro.distributions as dist
 import anndata
-from sklearn.linear_model import Ridge
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.pipeline import make_pipeline
-import math
-import tqdm
-import copy
-from matplotlib.pyplot import cm
-import pandas as pd
-import seaborn as sns
-import time
-import scanpy as sc
 
 if "boltons" in sys.modules:
     from boltons.cacheutils import cachedproperty as cached_property
 else:
     from functools import cached_property
 
-
-from typing import List
-
-from ternadecov.stats_helpers import *
-from ternadecov.simulator import *
-from ternadecov.stats_helpers import *
-from ternadecov.hypercluster import *
-from ternadecov.parametrization import *
-from ternadecov.gene_selector import *
+from ternadecov.parametrization import (
+    DeconvolutionDatatypeParametrization,
+    DeconvolutionDatasetParametrization,
+)
+from ternadecov.gene_selector import GeneSelector
+from ternadecov.hypercluster import hypercluster_anndata
 
 
 class SingleCellDataset:
@@ -112,7 +92,7 @@ class DeconvolutionDataset:
         self.selected_genes = ()
         self.verbose = parametrization.verbose
 
-        ## Hypercluster related
+        # Hypercluster related
         self.is_hyperclustered = parametrization.hypercluster
 
         selected_genes = GeneSelector.select_features(

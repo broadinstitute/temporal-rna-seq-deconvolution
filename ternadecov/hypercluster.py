@@ -1,4 +1,4 @@
-from collections import Counter, defaultdict
+from collections import Counter
 import scanpy as sc
 import pandas as pd
 
@@ -58,7 +58,7 @@ def hypercluster_anndata(
         ann_data_working = anndata_obj.copy()
 
     # Get the original cluster names
-    original_clusters = set(ann_data_working.obs[original_clustering_name])
+    # original_clusters = set(ann_data_working.obs[original_clustering_name])
 
     # Identify which clusters to subcluster
     ct_counter = Counter(ann_data_working.obs[original_clustering_name])

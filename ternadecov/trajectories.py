@@ -1,39 +1,16 @@
 import numpy as np
-import matplotlib
-import matplotlib.pyplot
 from torch.distributions import constraints
 import torch
 import pyro
-from pyro.infer import SVI, Trace_ELBO
-from typing import List, Dict
 import pyro.distributions as dist
-import anndata
-from sklearn.linear_model import Ridge
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.pipeline import make_pipeline
-import math
-import tqdm
-import copy
-from matplotlib.pyplot import cm
-import pandas as pd
-import seaborn as sns
-import time
-import scanpy as sc
-
-from ternadecov.stats_helpers import *
-from ternadecov.simulator import *
-from ternadecov.stats_helpers import *
-from ternadecov.hypercluster import *
-from ternadecov.dataset import *
-from ternadecov.parametrization import *
-
-
-from pyro.contrib.gp.models import VariationalSparseGP, VariationalGP
+from pyro.contrib.gp.models import VariationalGP
 from pyro.nn.module import PyroParam, pyro_method
 import pyro.contrib.gp.kernels as kernels
 from pyro.contrib.gp.parameterized import Parameterized
-
 from abc import abstractmethod
+
+from ternadecov.parametrization import TimeRegularizedDeconvolutionGPParametrization
+from ternadecov.stats_helpers import legendre_coefficient_mat
 
 
 class TrajectoryModule:
@@ -76,7 +53,7 @@ class BasicTrajectoryModule(TrajectoryModule):
         self.num_samples = num_samples
         self.init_posterior_global_scale_factor = init_posterior_global_scale_factor
 
-        ## Prior
+        # Prior
         self.unnorm_cell_pop_base_prior_loc_c = np.zeros((self.num_cell_types,))
         self.unnorm_cell_pop_base_prior_scale_c = np.ones((self.num_cell_types,))
 
@@ -96,7 +73,7 @@ class BasicTrajectoryModule(TrajectoryModule):
         # Dirichlet_alpha prior
         self.dirichlet_alpha_prior = np.ones((1,)) * 1e5
 
-        ## Posterior
+        # Posterior
         self.unnorm_cell_pop_base_posterior_loc_c = np.zeros((self.num_cell_types,))
         self.unnorm_cell_pop_base_posterior_scale_c = (
             self.init_posterior_global_scale_factor * np.ones((self.num_cell_types,))
@@ -198,10 +175,10 @@ class BasicTrajectoryModule(TrajectoryModule):
                     :, None
                 ],
             )
-            c_kl = legendre_coefficient_mat(self.polynomial_degree, dtype=dtype)[
+            c_kl = legendre_coefficient_mat(self.polynomial_degree, dtype=self.dtype)[
                 1:,
             ].to(
-                device
+                self.device
             )  # drop constant term
             intermediate_legenre_vals_km = torch.matmul(c_kl, t_lm)
             deformation_mc = torch.matmul(
@@ -267,6 +244,15 @@ class BasicTrajectoryModule(TrajectoryModule):
         cell_pop_mc = pyro.sample(
             "cell_pop_mc", dist.Delta(v=cell_pop_posterior_loc_mc).to_event(2),
         )
+
+        return {
+            "unnorm_cell_pop_base_posterior_loc_c": unnorm_cell_pop_base_posterior_loc_c,
+            "unnorm_cell_pop_deform_posterior_loc_ck": unnorm_cell_pop_deform_posterior_loc_ck,
+            "cell_pop_posterior_loc_mc": cell_pop_posterior_loc_mc,
+            "unnorm_cell_pop_base_c": unnorm_cell_pop_base_c,
+            "unnorm_cell_pop_deform_ck": unnorm_cell_pop_deform_ck,
+            "cell_pop_mc": cell_pop_mc,
+        }
 
     def get_composition_trajectories(self, dataset, n_intervals=1000):
         """Calculate the composition trajectories"""
@@ -368,16 +354,16 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
         parametrization: TimeRegularizedDeconvolutionGPParametrization = TimeRegularizedDeconvolutionGPParametrization(),
     ):
         """TBW.
-        
+
         :param xi_mq: covariate tensor with shape (num_sample, covariate_n_dim)
-        
+
         .. note:: in the current model where the only covairate is time, covariate_n_dim == 1
-        
+
         .. note:: The Gaussian process is specifying a function in a (num_cell_types)-dimensional
           unconstrained Euclidean space. Applying softmax to this function give us the normalized
           cell populations on the (num_cell_types)-dimensional simplex. We refer to the unnormalized
           function as "f" for brevity in the code.
-          
+
         """
         super(VGPTrajectoryModule, self).__init__()
 
@@ -397,10 +383,7 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
         )
         self.gp_cholesky_jitter = parametrization.gp_cholesky_jitter
 
-        #####################################################
-        ## Prior
-        #####################################################
-
+        # Prior
         # kernel setup
         kernel_rbf = kernels.RBF(
             input_dim=self.covariate_n_dim,
@@ -427,7 +410,7 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
         def f_mean_function(xi_nq: torch.Tensor):
             """Takes the covariate tensor with shape (batch_size, covariate_n_dim) and returns the function
             mean with shape (num_cell_types, batch_size).
-            
+
             .. note: the shape of the output of GP is permuted.
             """
             assert xi_nq.ndim == 2
@@ -447,7 +430,7 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
             jitter=self.gp_cholesky_jitter,
         )
 
-        ## Posterior
+        # Posterior
         self.gp_init_f_posterior_loc_mc = torch.zeros(
             (self.num_samples, self.num_cell_types), device=device, dtype=dtype
         )
@@ -530,7 +513,7 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
             )[..., None]
             f_new_loc_cn, f_new_var_cn = self.gp.forward(xi_new_nq, full_cov=False)
 
-        f_new_scale_cn = f_new_var_cn.clone().detach().cpu().sqrt()
+        # f_new_scale_cn = f_new_var_cn.clone().detach().cpu().sqrt()
         pi_new_loc_cn = torch.softmax(f_new_loc_cn.clone().detach().cpu(), dim=0)
 
         times_z = xi_new_nq[:, 0].clone().detach().cpu()

@@ -1,12 +1,8 @@
 import numpy as np
-import torch
 import anndata
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
-import math
-import copy
-import pandas as pd
 import scanpy as sc
 import typing
 import logging

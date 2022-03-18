@@ -1,32 +1,13 @@
-import numpy as np
 import matplotlib
 import matplotlib.pyplot
-from torch.distributions import constraints
 import torch
 import pyro
-from pyro.infer import SVI, Trace_ELBO
-from typing import List, Dict
-import pyro.distributions as dist
-import anndata
-from sklearn.linear_model import Ridge
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.pipeline import make_pipeline
 import math
-import tqdm
-import copy
 from matplotlib.pyplot import cm
 import pandas as pd
 import seaborn as sns
-import time
-import scanpy as sc
 
-from ternadecov.stats_helpers import *
-from ternadecov.simulator import *
-from ternadecov.stats_helpers import *
-from ternadecov.hypercluster import *
-from ternadecov.dataset import *
-from ternadecov.trajectories import *
-from ternadecov.time_deconv import *
+from ternadecov.time_deconv import TimeRegularizedDeconvolutionModel
 
 
 class DeconvolutionPlotter:
@@ -34,8 +15,8 @@ class DeconvolutionPlotter:
         self.deconvolution = deconvolution
 
     def plot_gp_composition_trajectories(self, n_samples=500):
-        """" Plot per-celltype  
-        
+        """" Plot per-celltype
+
         """
         with torch.no_grad():
             traj = self.deconvolution.population_proportion_model
@@ -140,7 +121,7 @@ class DeconvolutionPlotter:
             # Plot panel
             boxprops = dict(facecolor=cm.tab10(c))
             cur_axis = ax[c // fig_nrow, c % fig_nrow]
-            pxb_obj = cur_axis.bxp(
+            cur_axis.bxp(
                 bxpstats=plot_data,
                 showfliers=False,
                 shownotches=False,
@@ -195,9 +176,8 @@ class DeconvolutionPlotter:
                 + self.deconvolution.dataset.time_min
             )
             prop = cell_pop[sort_order, i].clone().detach().cpu()
-            labels = self.deconvolution.dataset.cell_type_str_list[i]
 
-            df1 = pd.DataFrame({"time": t, "proportion": prop,})
+            df1 = pd.DataFrame({"time": t, "proportion": prop})
 
             sns.boxplot(
                 x="time", y="proportion", data=df1, ax=ax[c_i, r_i], color=cm.tab10(i)
@@ -408,7 +388,7 @@ class DeconvolutionPlotter:
 
         sort_order = torch.argsort(self.deconvolution.dataset.t_m)
 
-        ## Summarise cell_pop_mc to the high-level clusters
+        # Summarise cell_pop_mc to the high-level clusters
         n_top_level_clusters = len(
             set(self.deconvolution.dataset.hypercluster_results["cluster_map"].values())
         )

@@ -1,6 +1,7 @@
 """Commandline functionality"""
 
 import argparse
+
 import ternadecov.cli_tools as cli
 
 
@@ -8,8 +9,8 @@ def get_argument_parser() -> argparse.ArgumentParser:
     """Return a prepared ArgumentParser"""
     parser = argparse.ArgumentParser(
         prog="ternadecov",
-        description="ternadecov is a software package for  deconvolution of bulk RNA-seq "
-        "samples from time series using single-cell datasets.",
+        description="ternadecov is a software package for deconvolution "
+        "of bulk RNA-seq samples from time series using single-cell datasets.",
     )
 
     # Global
@@ -18,12 +19,12 @@ def get_argument_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="tool")
 
-    ######################################################
     # Deconvolution
     parser_deconvolve = subparsers.add_parser(
         "deconvolve", help="perform deconvolution"
     )
     parser_deconvolve.add_argument("--bulk-anndata", help="anndata for bulk data")
+
     parser_deconvolve.add_argument("--sc-anndata", help="anndata for sc data")
     parser_deconvolve.add_argument(
         "--sample-output-csv", help="output csv file for sample compositions"
@@ -58,7 +59,6 @@ def get_argument_parser() -> argparse.ArgumentParser:
         "--log-frequency", help="frequency of logging during fitting", default=1000
     )
 
-    ######################################################
     # Simulation
     parser_simulate = subparsers.add_parser("simulate", help="simulate dataset")
     parser_simulate.add_argument(

@@ -1,32 +1,19 @@
-import numpy as np
-import matplotlib
-import matplotlib.pyplot
-from torch.distributions import constraints
 import torch
 import pyro
 from pyro.infer import SVI, Trace_ELBO
-from typing import List, Dict
 import pyro.distributions as dist
-import anndata
-from sklearn.linear_model import Ridge
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.pipeline import make_pipeline
 import math
-import tqdm
-import copy
-from matplotlib.pyplot import cm
 import pandas as pd
-import seaborn as sns
 import time
-import scanpy as sc
+import logging
 
-from ternadecov.stats_helpers import *
-from ternadecov.simulator import *
-from ternadecov.stats_helpers import *
-from ternadecov.hypercluster import *
-from ternadecov.dataset import *
-from ternadecov.trajectories import *
-from ternadecov.parametrization import *
+from ternadecov.dataset import DeconvolutionDataset
+from ternadecov.parametrization import (
+    DeconvolutionDatatypeParametrization,
+    TimeRegularizedDeconvolutionModelParametrization,
+)
+from ternadecov.trajectories import VGPTrajectoryModule, BasicTrajectoryModule
+from ternadecov.stats_helpers import NegativeBinomialAltParam
 
 # Indices:
 # - c cell type
@@ -222,12 +209,18 @@ class TimeRegularizedDeconvolutionModel:
             "log_beta_g", dist.Delta(v=log_beta_posterior_loc_g).to_event(1)
         )
 
-        # self.population_proportion_model.guide()
-
         # get the posterior cell populations from the trajectory module
         cell_pop_mc = self.population_proportion_model.guide(
             xi_mq=t_m[..., None].contiguous()
         )
+
+        return {
+            "log_phi_posterior_loc_g": log_phi_posterior_loc_g,
+            "log_beta_posterior_loc_g": log_beta_posterior_loc_g,
+            "log_phi_g": log_phi_g,
+            "log_beta_g": log_beta_g,
+            "cell_pop_mc": cell_pop_mc,
+        }
 
     def fit_model(
         self,
@@ -240,7 +233,7 @@ class TimeRegularizedDeconvolutionModel:
         if clear_param_store:
             pyro.clear_param_store()
 
-        ## TODO: bring these out
+        # TODO: bring these out
         optim = pyro.optim.Adam({"lr": 1e-3})
 
         self.loss_hist = []
@@ -301,7 +294,7 @@ class TimeRegularizedDeconvolutionModel:
 
     def write_sample_composition_default(self, csv_filename):
         """Write sample composition proportions to csv file
-        
+
         :param csv_filename: filename of csv file to write to
         """
 

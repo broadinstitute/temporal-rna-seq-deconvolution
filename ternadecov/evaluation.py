@@ -1,39 +1,20 @@
-import numpy as np
-import matplotlib
-import matplotlib.pyplot
-from torch.distributions import constraints
+"""Functions for fitting multiple models with different hyper parameters"""
+
 import torch
-import pyro
-from pyro.infer import SVI, Trace_ELBO
-from typing import List, Dict
-import pyro.distributions as dist
-import anndata
-from sklearn.linear_model import Ridge
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.pipeline import make_pipeline
-import math
+from typing import Dict
 import tqdm
 import copy
-from matplotlib.pyplot import cm
-import pandas as pd
-import seaborn as sns
 import time
-import scanpy as sc
-from typing import Dict
 
-from ternadecov.stats_helpers import *
-from ternadecov.simulator import *
-from ternadecov.stats_helpers import *
-from ternadecov.hypercluster import *
-from ternadecov.dataset import *
-from ternadecov.trajectories import *
-from ternadecov.time_deconv import *
-
-#########################
-## Functions for fitting multiple models with different hyper parameters
-
-
-#########################
+from ternadecov.dataset import SingleCellDataset, DeconvolutionDataset
+from ternadecov.simulator import (
+    simulate_data,
+    generate_anndata_from_sim,
+    calculate_trajectory_prediction_error,
+    simulate_with_sigmoid_proportions,
+    sigmoid,
+)
+from ternadecov.time_deconv import TimeRegularizedDeconvolutionModel
 
 
 def evaluate_with_trajectory(
@@ -48,12 +29,12 @@ def evaluate_with_trajectory(
     n_iters=5_000,
 ):
     """Evaluate L1_error and measure fit time for fitting on a simulated dataset from a given trajectory
-    
+
     :param sc_dataset: SingleCellDataset for generated simulations from
     :param n_samples: number of samples along the time axis to generate
-    :param trajectory_type: string indicating the trajectory type to which the `trajectory_coef` correspond 
+    :param trajectory_type: string indicating the trajectory type to which the `trajectory_coef` correspond
     :param trajectory_coef: trajectory coefficients
-    
+
     """
 
     # Simulate bulk data
@@ -79,7 +60,7 @@ def evaluate_with_trajectory(
     )
 
     # Prepare deconvolution object
-    pseudo_time_reg_deconv_sim = TimeRegularizedDeconvolution(
+    pseudo_time_reg_deconv_sim = TimeRegularizedDeconvolutionModel(
         dataset=ebov_simulated_dataset,
         # polynomial_degree=3,
         # basis_functions="polynomial",
@@ -109,7 +90,9 @@ def evaluate_with_trajectory(
     }
 
 
-def evaluate_model(params: dict, reference_deconvolution: TimeRegularizedDeconvolution):
+def evaluate_model(
+    params: dict, reference_deconvolution: TimeRegularizedDeconvolutionModel
+):
     # TODO: Update to work with different proportion types
 
     sim_res = simulate_with_sigmoid_proportions(
@@ -124,7 +107,7 @@ def evaluate_model(params: dict, reference_deconvolution: TimeRegularizedDeconvo
         bulk_anndata=simulated_bulk, **params["deconvolution_dataset_params"]
     )
 
-    simulated_deconvolution = TimeRegularizedDeconvolution(
+    simulated_deconvolution = TimeRegularizedDeconvolutionModel(
         dataset=simulated_dataset, **params["deconvolution_params"]
     )
 
@@ -197,7 +180,7 @@ def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=
     t_m = torch.arange(start_time, end_time, step)
     num_samples = t_m.shape[0]
 
-    ## Get the ground truth
+    # Get the ground truth
     if sim_res["trajectory_params"]["type"] == "sigmoid":
         magnitude = sim_res["trajectory_params"]["magnitude"]
         shift = sim_res["trajectory_params"]["shift"]

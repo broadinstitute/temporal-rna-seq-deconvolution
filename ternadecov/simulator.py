@@ -1,15 +1,12 @@
-from ternadecov import *
-
-# import matplotlib.pylab as plt
 import matplotlib
 import matplotlib.pyplot
 import torch
 import pyro
 import anndata
 import numpy as np
-
-from ternadecov.stats_helpers import *
 import pandas as pd
+
+from ternadecov.stats_helpers import NegativeBinomialAltParam
 
 
 def generate_anndata_from_sim(sim_res, reference_dataset):
@@ -208,7 +205,7 @@ def sample_trajectories(type, num_cell_types):
 
 
 ######################################################
-## Linear
+# Linear
 ######################################################
 
 
@@ -281,7 +278,7 @@ def sample_linear_proportions(
 
 
 ######################################################
-## Periodic
+# Periodic
 ######################################################
 
 
@@ -357,7 +354,7 @@ def sample_periodic_proportions(
 
 
 ######################################################
-## Sigmoid
+# Sigmoid
 ######################################################
 
 
@@ -445,7 +442,7 @@ def sample_sigmoid_proportions(
 
 
 ######################################################
-## Error Calculation
+# Error Calculation
 ######################################################
 def calculate_sample_prediction_error(sim_res, pseudo_time_reg_deconv_sim):
     # Ground Truth
@@ -478,7 +475,7 @@ def calculate_trajectory_prediction_error(
     t_m = torch.arange(start_time, end_time, step)
     num_samples = t_m.shape[0]
 
-    ## Get the ground truth
+    # Get the ground truth
     if sim_res["trajectory_params"]["type"] == "sigmoid":
         shift = sim_res["trajectory_params"]["shift"]
         effect_size = sim_res["trajectory_params"]["effect_size"]

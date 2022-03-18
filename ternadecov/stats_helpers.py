@@ -1,5 +1,7 @@
 import functools
 import pyro.distributions as dist
+import torch
+from scipy.special import legendre
 
 
 @functools.lru_cache(maxsize=20)

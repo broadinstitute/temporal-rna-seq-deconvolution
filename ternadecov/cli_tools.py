@@ -1,12 +1,9 @@
 import torch
+import numpy as np
+import anndata
 
-from ternadecov.time_deconv import *
-from ternadecov.stats_helpers import *
-from ternadecov.simulator import *
-from ternadecov.stats_helpers import *
-from ternadecov.hypercluster import *
-from ternadecov.dataset import *
-from ternadecov.trajectories import *
+from ternadecov.time_deconv import TimeRegularizedDeconvolutionModel
+from ternadecov.dataset import DeconvolutionDataset
 
 
 def get_torch_device(args):
@@ -17,6 +14,8 @@ def get_torch_device(args):
             print("Using CUDA")
     else:
         device = torch.device("cpu:0")
+
+    return device
 
 
 def do_deconvolution(args):
@@ -56,7 +55,7 @@ def do_deconvolution(args):
 
     if args.verbose:
         print("Running deconvolution...")
-    deconvolution = TimeRegularizedDeconvolution(
+    deconvolution = TimeRegularizedDeconvolutionModel(
         dataset=dataset,
         polynomial_degree=args.polynomial_degree,
         basis_functions=args.basis_function_type,
