@@ -1,13 +1,15 @@
+"""Trajectories of cell proportions"""
 import numpy as np
-from torch.distributions import constraints
 import torch
 import pyro
 import pyro.distributions as dist
+import pyro.contrib.gp.kernels as kernels
+from torch.distributions import constraints
 from pyro.contrib.gp.models import VariationalGP
 from pyro.nn.module import PyroParam, pyro_method
-import pyro.contrib.gp.kernels as kernels
 from pyro.contrib.gp.parameterized import Parameterized
 from abc import abstractmethod
+from typing import Dict
 
 from ternadecov.parametrization import TimeRegularizedDeconvolutionGPParametrization
 from ternadecov.stats_helpers import legendre_coefficient_mat
@@ -93,7 +95,7 @@ class BasicTrajectoryModule(TrajectoryModule):
             / self.num_cell_types
         )
 
-    def model(self, xi_mq: torch.Tensor):
+    def model(self, xi_mq: torch.Tensor) -> torch.Tensor:
 
         t_m = xi_mq[:, 0]
 
@@ -202,7 +204,7 @@ class BasicTrajectoryModule(TrajectoryModule):
 
         return cell_pop_mc
 
-    def guide(self, xi_mq):
+    def guide(self, xi_mq: torch.Tensor) -> torch.Tensor:
         # variational parameters for unnorm_cell_pop_base_c ("B_c")
         unnorm_cell_pop_base_posterior_loc_c = pyro.param(
             "unnorm_cell_pop_base_posterior_loc_c",
@@ -244,15 +246,8 @@ class BasicTrajectoryModule(TrajectoryModule):
         cell_pop_mc = pyro.sample(
             "cell_pop_mc", dist.Delta(v=cell_pop_posterior_loc_mc).to_event(2),
         )
-
-        return {
-            "unnorm_cell_pop_base_posterior_loc_c": unnorm_cell_pop_base_posterior_loc_c,
-            "unnorm_cell_pop_deform_posterior_loc_ck": unnorm_cell_pop_deform_posterior_loc_ck,
-            "cell_pop_posterior_loc_mc": cell_pop_posterior_loc_mc,
-            "unnorm_cell_pop_base_c": unnorm_cell_pop_base_c,
-            "unnorm_cell_pop_deform_ck": unnorm_cell_pop_deform_ck,
-            "cell_pop_mc": cell_pop_mc,
-        }
+        
+        return cell_pop_mc
 
     def get_composition_trajectories(self, dataset, n_intervals=1000):
         """Calculate the composition trajectories"""
@@ -505,7 +500,7 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
 
         return cell_pop_mc
 
-    def get_composition_trajectories(self, dataset, n_intervals=1000):
+    def get_composition_trajectories(self, dataset, n_intervals=1000) -> Dict:
         """Get the composition trajectories"""
         with torch.no_grad():
             xi_new_nq = torch.linspace(
