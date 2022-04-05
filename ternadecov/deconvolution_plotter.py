@@ -311,6 +311,43 @@ class DeconvolutionPlotter:
                     loc="best",
                     fontsize="small",
                 )
+                
+    def plot_summarized_cell_compositions(self,  celltype_summarization=None, n_samples=500, **kwargs):
+        """Plot the composition trajectories"""
+
+        traj = self.deconvolution.population_proportion_model.get_composition_trajectories(
+            self.deconvolution.dataset, n_intervals=100
+        )
+
+        times = traj["true_times_z"]
+        composition = traj["norm_comp_tc"]
+        celltype_labels = self.deconvolution.dataset.cell_type_str_list
+        
+        index_v = torch.zeros((len(celltype_labels),), dtype=torch.int32)
+        for i, x in enumerate(celltype_labels):
+            for k, t in enumerate(celltype_summarization.keys()):
+                if x in celltype_summarization[t]:
+                    index_v[i] = k
+        
+        print(index_v)
+        print(celltype_labels)
+        
+        # k is the summarized c
+        composition_summarized_tk = torch.zeros((traj["norm_comp_tc"].shape[0],len(celltype_summarization)))
+        composition_summarized_tk.index_add_(dim=1,index=index_v,source=composition)
+        
+
+        fig, ax = matplotlib.pyplot.subplots()
+        ax.plot(
+            times, composition_summarized_tk
+        )
+        ax.set_title("Predicted cell proportions")
+        ax.set_xlabel("Time")
+        ax.legend(
+            celltype_summarization.keys(),
+            loc="best",
+            fontsize="small",
+        )
 
     def plot_sample_compositions_scatter(
         self, figsize=(16, 9), ignore_hypercluster=False
