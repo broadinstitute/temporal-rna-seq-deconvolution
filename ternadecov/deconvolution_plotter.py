@@ -14,7 +14,7 @@ class DeconvolutionPlotter:
     def __init__(self, deconvolution: TimeRegularizedDeconvolutionModel):
         self.deconvolution = deconvolution
 
-    def plot_gp_composition_trajectories(self, n_samples=500):
+    def plot_gp_composition_trajectories(self, n_samples=500, filenames=()):
         """" Plot per-celltype
 
         """
@@ -56,9 +56,12 @@ class DeconvolutionPlotter:
             ax[i // nrow, i % nrow].plot(
                 xi_new_nq.cpu().numpy(), plotrange_kcn[1, i].cpu().numpy().T, c="black"
             )
+        
+        for filename in filenames:
+            matplotlib.pyplot.savefig(filename)
 
     def plot_sample_compositions_boxplot_confidence(
-        self, n_draws=100, verbose=False, figsize=(20, 15), dpi=80, spacing=1
+        self, n_draws=100, verbose=False, figsize=(20, 15), dpi=80, spacing=1, filenames=()
     ):
         # l -- draw index
 
@@ -139,10 +142,14 @@ class DeconvolutionPlotter:
                 rotation=90,
             )
 
-        fig.show()
         fig.tight_layout()
+        
+        for filename in filenames:
+            matplotlib.pyplot.savefig(filename)
+        
+        
 
-    def plot_sample_compositions_boxplot(self, figsize=(16, 9)):
+    def plot_sample_compositions_boxplot(self, figsize=(16, 9), filenames=()):
         figsize = (16, 9)
 
         # todo: not clear if this is even needed
@@ -185,10 +192,13 @@ class DeconvolutionPlotter:
             ax[c_i, r_i].set_title(self.deconvolution.dataset.cell_type_str_list[i])
 
         matplotlib.pyplot.tight_layout()
+        
+        for filename in filenames:
+            matplotlib.pyplot.savefig(filename)
 
         return ax
 
-    def plot_phi_g_distribution(self) -> matplotlib.axes.Axes:
+    def plot_phi_g_distribution(self, filenames=()) -> matplotlib.axes.Axes:
         """Plot the distribution of phi_g from the param_store"""
 
         phi_g = pyro.param("log_phi_posterior_loc_g").clone().detach().exp().cpu()
@@ -198,10 +208,13 @@ class DeconvolutionPlotter:
         ax.hist(phi_g.numpy(), bins=100)
         ax.set_xlabel("$\phi_g$")
         ax.set_ylabel("Counts")
+        
+        for filename in filenames:
+            matplotlib.pyplot.savefig(filename)
 
         return ax
 
-    def plot_beta_g_distribution(self) -> matplotlib.axes.Axes:
+    def plot_beta_g_distribution(self,filenames=()) -> matplotlib.axes.Axes:
         """Plot distribution of beta_g from the param_store"""
 
         beta_g = pyro.param("log_beta_posterior_loc_g").clone().detach().exp().cpu()
@@ -211,10 +224,13 @@ class DeconvolutionPlotter:
         ax.hist(beta_g.numpy(), bins=100)
         ax.set_xlabel("$beta_g$")
         ax.set_ylabel("Counts")
+        
+        for filename in filenames:
+            matplotlib.pyplot.savefig(filename)
 
         return ax
 
-    def plot_loss(self) -> matplotlib.axes.Axes:
+    def plot_loss(self, filenames=()) -> matplotlib.axes.Axes:
         """Plot the losses during training"""
 
         fig, ax = matplotlib.pyplot.subplots()
@@ -223,10 +239,13 @@ class DeconvolutionPlotter:
         ax.set_title("Losses")
         ax.set_xlabel("iteration")
         ax.set_ylabel("ELBO Loss")
+        
+        for filename in filenames:
+            matplotlib.pyplot.savefig(filename)
 
         return ax
 
-    def plot_composition_trajectories(self, show_hypercluster=False, **kwargs):
+    def plot_composition_trajectories(self, show_hypercluster=False, filenames=(), **kwargs):
         """Plot the composition trajectories"""
 
         if "show_sampled_trajectories" in kwargs.keys():
@@ -311,12 +330,15 @@ class DeconvolutionPlotter:
                     loc="best",
                     fontsize="small",
                 )
+        
+        for filename in filenames:
+            matplotlib.pyplot.savefig(filename)
                 
-    def plot_summarized_cell_compositions(self,  celltype_summarization=None, n_samples=500, **kwargs):
+    def plot_summarized_cell_compositions(self,  celltype_summarization, n_intervals = 100, filenames=(), **kwargs):
         """Plot the composition trajectories"""
 
         traj = self.deconvolution.population_proportion_model.get_composition_trajectories(
-            self.deconvolution.dataset, n_intervals=100
+            self.deconvolution.dataset, n_intervals=n_intervals
         )
 
         times = traj["true_times_z"]
@@ -329,14 +351,10 @@ class DeconvolutionPlotter:
                 if x in celltype_summarization[t]:
                     index_v[i] = k
         
-        print(index_v)
-        print(celltype_labels)
-        
         # k is the summarized c
         composition_summarized_tk = torch.zeros((traj["norm_comp_tc"].shape[0],len(celltype_summarization)))
         composition_summarized_tk.index_add_(dim=1,index=index_v,source=composition)
         
-
         fig, ax = matplotlib.pyplot.subplots()
         ax.plot(
             times, composition_summarized_tk
@@ -348,9 +366,16 @@ class DeconvolutionPlotter:
             loc="best",
             fontsize="small",
         )
+        ax.set_ylim([0,1])
+        
+        for filename in filenames:
+            matplotlib.pyplot.savefig(filename)
+        
+        return ax
 
     def plot_sample_compositions_scatter(
-        self, figsize=(16, 9), ignore_hypercluster=False
+        self, figsize=(16, 9), ignore_hypercluster=False,
+        filenames=()
     ):
         """Plot a facetted scatter plot of the individual sample compositions
 
@@ -360,8 +385,11 @@ class DeconvolutionPlotter:
             self.plot_sample_compositions_scatter_hyperclustered(figsize=figsize)
         else:
             self.plot_sample_compositions_scatter_default(figsize=figsize)
+            
+        for filename in filenames:
+            matplotlib.pyplot.savefig(filename)
 
-    def plot_sample_compositions_scatter_default(self, figsize):
+    def plot_sample_compositions_scatter_default(self, figsize, filenames=()):
         """Plot a facetted scatter plot of the individual sample compositions for regular processing
 
         :param figsize: tuple of size 2 with figure size information
@@ -400,10 +428,13 @@ class DeconvolutionPlotter:
             ax[c_i, r_i].set_title(self.deconvolution.dataset.cell_type_str_list[i])
 
         matplotlib.pyplot.tight_layout()
+        
+        for filename in filenames:
+            matplotlib.pyplot.savefig(filename)
 
         return ax
 
-    def plot_sample_compositions_scatter_hyperclustered(self, figsize):
+    def plot_sample_compositions_scatter_hyperclustered(self, figsize, filenames=()):
         """Plot a facetted scatter plot of the individual sample compositions for hyperclustered processing
 
         :param figsize: tuple of size 2 with figure size information
@@ -478,5 +509,8 @@ class DeconvolutionPlotter:
             ax[c_i, r_i].set_title(high_cell_type_str_list[i])
 
         matplotlib.pyplot.tight_layout()
+        
+        for filename in filenames:
+            matplotlib.pyplot.savefig(filename)
 
         return ax
