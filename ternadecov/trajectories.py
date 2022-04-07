@@ -512,7 +512,8 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
         pi_new_loc_cn = torch.softmax(f_new_loc_cn.clone().detach().cpu(), dim=0)
 
         times_z = xi_new_nq[:, 0].clone().detach().cpu()
-        true_times_z = ((times_z + 1) / 2) * dataset.time_range + dataset.time_min
+        # TODO: May need adjustment for legendre
+        true_times_z = times_z * dataset.time_range + dataset.time_min
         norm_comp_tc = pi_new_loc_cn.permute(-1, -2)
         summarized_composition_rt = None
         toplevel_cell_map = None
