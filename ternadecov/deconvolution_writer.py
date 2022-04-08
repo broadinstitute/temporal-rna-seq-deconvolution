@@ -1,13 +1,22 @@
 from ternadecov.time_deconv import TimeRegularizedDeconvolutionModel
+from ternadecov.utils import melt_tensor_to_pandas
 import torch
 import pandas as pd
+from typing import Dict, List
+
 
 class DeconvolutionWriter():
     def __init__(self, deconvolution: TimeRegularizedDeconvolutionModel):
         self.deconvolution = deconvolution
         
-    def write_summarized_cell_compositions(self, celltype_summarization, filename=None, n_intervals=100, returnTable=False):
-        """Write summarized composition trajectories to csv file"""
+    def write_summarized_cell_compositions(self, celltype_summarization: Dict[str, List[str]], filename=None, n_intervals=100, return_table=False):
+        """Write summarized composition trajectories to csv file
+        
+        :param celltype_summarization: dictionary of lists with the cell summarization to be performed
+        :param filename: name of csv file to save table to
+        :param n_intervals: number of points to evaluate the trajectories at
+        :param return_table: flag to return the resulting data as a pandas DataFrame
+        """
         
         traj = self.deconvolution.population_proportion_model.get_composition_trajectories(
             self.deconvolution.dataset, n_intervals=n_intervals
@@ -40,8 +49,14 @@ class DeconvolutionWriter():
         if returnTable:
             return long_df
         
-    def write_cell_compositions(self, filename=None, n_intervals=100, returnTable = False):
-        """Write cell compositions to csv file"""
+    def write_cell_compositions(self, filename=None, n_intervals=100, return_table = False):
+        """Write cell composition trajectories to csv file
+        
+        :param filename: name of file to csv data to
+        :param n_intervals: number of intervals to evaluate the trajectories at:
+        :param return_table: optionally return the calculated table as a pandas df
+        
+        """
         traj = self.deconvolution.population_proportion_model.get_composition_trajectories(
             self.deconvolution.dataset, n_intervals=n_intervals
         )
@@ -60,5 +75,44 @@ class DeconvolutionWriter():
         if filename is not None:
             long_df.to_csv(filename)
             
-        if returnTable:
+        if return_table:
             return long_df
+    
+    def write_trajectory_coefficients(self, filename, returnTable = True):
+        raise NotImplementedError()
+        
+    def write_sample_draws_quantiles(self, filename=None, n_draws = 100, return_table = True):
+        assert self.deconvolution.trajectory_model_type == "gp"
+        
+        n_samples = self.deconvolution.dataset.num_samples
+        n_celltypes = self.deconvolution.dataset.num_cell_types
+        cell_pop_lmc = torch.zeros([n_draws, n_samples, n_celltypes])
+        #sort_order = torch.argsort(self.deconvolution.dataset.t_m)
+        sample_names = self.deconvolution.dataset.bulk_sample_names
+        celltype_labels = self.deconvolution.dataset.cell_type_str_list
+
+        # Generate draws from posterior
+        for i in range(n_draws):
+            cell_pop_lmc[i, :] = (
+                self.deconvolution.population_proportion_model.guide(torch.Tensor([]))
+                .clone()
+                .detach()
+                .cpu()
+            )[None, :]
+            
+        # Get quantiles of draw
+        plot_quantiles_qmc = torch.quantile(cell_pop_lmc, q=torch.linspace(0, 1, 5), dim=0)
+    
+        quantile_labels = list(str(x) for x in range(5))
+
+        df = melt_tensor_to_pandas(plot_quantiles_qmc, 
+                              ('quantile', 'sample', 'celltype'),
+                              quantile_labels,
+                              sample_names,
+                              celltype_labels)
+
+        if filename is not None:
+            df.to_csv(filename)
+            
+        if return_table:
+            return df

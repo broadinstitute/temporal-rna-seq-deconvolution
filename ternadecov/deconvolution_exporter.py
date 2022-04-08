@@ -57,4 +57,5 @@ class DeconvolutionExporter():
         )
         
         if save_csv:
-            self.writer.write_cell_compositions(filename=f'{output_directory}/{self.prefix}_compositions.csv')
+                self.writer.write_cell_compositions(filename=f'{output_directory}/{self.prefix}_compositions.csv')
+                self.writer.write_sample_draws_quantiles(filename=f'{output_directory}/{self.prefix}_sample_quantile_compositions.csv')
