@@ -81,9 +81,11 @@ class DeconvolutionDataset:
         types: DeconvolutionDatatypeParametrization,
         parametrization: DeconvolutionDatasetParametrization,
     ):
+        
+
 
         self.sc_celltype_col = parametrization.sc_celltype_col
-        self.bul_time_col = parametrization.bulk_time_col
+        self.bulk_time_col = parametrization.bulk_time_col
 
         self.dtype_np = types.dtype_np
         self.dtype = types.dtype
