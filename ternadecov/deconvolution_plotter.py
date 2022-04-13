@@ -37,7 +37,7 @@ class DeconvolutionPlotter:
             # pi_new_loc_cn = torch.softmax(f_new_loc_cn, dim=0)
 
             plotrange_kcn = torch.quantile(
-                pi_new_sampled_scn, torch.Tensor([0.25, 0.5, 0.75]).cuda(), 0
+                pi_new_sampled_scn, torch.Tensor([0.25, 0.5, 0.75]).to(self.deconvolution.device), 0
             ).cpu()
 
         n_celltypes = plotrange_kcn.shape[1]
