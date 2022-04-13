@@ -7,12 +7,17 @@ from matplotlib.pyplot import cm
 import pandas as pd
 import seaborn as sns
 
+from ternadecov.plotting_functions import plot_composition_trajectories_via_posterior_sampling
 from ternadecov.time_deconv import TimeRegularizedDeconvolutionModel
 
 
 class DeconvolutionPlotter:
     def __init__(self, deconvolution: TimeRegularizedDeconvolutionModel):
         self.deconvolution = deconvolution
+        
+        
+    def plot_composition_trajectories_via_posterior_sampling(*args, **kwargs):
+        return plot_composition_trajectories_via_posterior_sampling(*args, **kwargs)
 
     def plot_gp_composition_trajectories(self, n_samples=500, filenames=()):
         """" Plot per-celltype
