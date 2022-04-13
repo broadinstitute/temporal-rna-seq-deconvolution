@@ -6,7 +6,7 @@ class DeconvolutionDatatypeParametrization:
     """Parametrization for datatypes of model"""
 
     def __init__(self, device=None, dtype=None, dtype_np=None):
-        self.device = torch.device("cuda:0") if device is None else device
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu") if device is None else device
         self.dtype = torch.float32 if dtype is None else dtype
         self.dtype_np = np.float32 if dtype_np is None else dtype_np
 
@@ -53,6 +53,11 @@ class DeconvolutionDatasetParametrization:
         bulk_time_col,
         feature_selection_method="overdispersed_bulk_and_high_sc",
     ):
+        # Check provided columns are valid
+        assert sc_celltype_col in list(sc_anndata.obs.columns)
+        assert bulk_time_col in list(bulk_anndata.obs.columns)
+        
+        
         self.sc_anndata = sc_anndata
         self.sc_celltype_col = sc_celltype_col
         self.bulk_anndata = bulk_anndata
