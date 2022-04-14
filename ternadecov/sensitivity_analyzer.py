@@ -4,6 +4,7 @@ import math
 import matplotlib
 import numpy as np
 import pyro
+import copy
 
 from ternadecov.parametrization import (
     DeconvolutionDatasetParametrization,
@@ -31,6 +32,8 @@ class SensitivityAnalyzer:
         dataset = DeconvolutionDataset(
             parametrization=dataset_param, types=datatype_param,
         )
+        
+        print(f'sc_anndata shape {dataset_param.sc_anndata.shape}')
 
         # Make the deconvolution model
         model = TimeRegularizedDeconvolutionModel(
@@ -72,8 +75,9 @@ class SensitivityAnalyzer:
         n_iters=10_000,
     ):
         """Scan the defined parameter with values in the specified range and save results"""
-
         results = {}
+        
+        dataset_param = copy.deepcopy(dataset_param)
 
         if parameter_variable_type == "continuous":
             assert start is not None
@@ -87,17 +91,15 @@ class SensitivityAnalyzer:
             raise ValueError(
                 f"Unknown parameter_variable_type: {parameter_variable_type}"
             )
+                
+        model_param_internal = copy.deepcopy(model_param)
+        trajectory_param_internal = copy.deepcopy(trajectory_param)
+        dataset_param_internal = copy.deepcopy(dataset_param)
 
         # evaluation loop
         for v in param_values:
             pyro.clear_param_store()
             logging.info(f"Evaluating with {parameter} = {v} ...")
-
-            # Use default parameter sets for model and trajectory if not specified
-            if model_param is None:
-                model_param = TimeRegularizedDeconvolutionModelParametrization()
-            if trajectory_param is None:
-                trajectory_param = TimeRegularizedDeconvolutionGPParametrization()
 
             # Modifying parameters
             if parameter_type == "model":

@@ -12,7 +12,7 @@ def generate_posterior_samples(
         t_begin: float = 0.0,
         t_end: float = 1.0,
         n_bins: int = 1000,
-        n_samples_per_bin: int = 1000):
+        n_samples_per_bin: int = 10000):
     
     with torch.no_grad():
         traj = deconvolution.population_proportion_model

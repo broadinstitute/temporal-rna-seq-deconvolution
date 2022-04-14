@@ -26,13 +26,13 @@ class DeconvolutionExporter():
             filenames=construct_filenames('_loss', extensions)
         )
         
-        self.plotter.plot_composition_trajectories(
-            filenames=construct_filenames('_trajectories', extensions)
-        )
+#         self.plotter.plot_composition_trajectories(
+#             filenames=construct_filenames('_trajectories', extensions)
+#         )
         
-        self.plotter.plot_gp_composition_trajectories(
-            filenames=construct_filenames('_gp_composition', extensions)
-        )
+#         self.plotter.plot_gp_composition_trajectories(
+#             filenames=construct_filenames('_gp_composition', extensions)
+#         )
         
         self.plotter.plot_phi_g_distribution(
             filenames=construct_filenames('_phi_g', extensions)
@@ -55,6 +55,29 @@ class DeconvolutionExporter():
             spacing=3,
             filenames=construct_filenames('_boxplot_confidence', extensions)
         )
+        
+        # One panel per celltype with error
+        self.plotter.plot_composition_trajectories_via_posterior_sampling(
+            iqr_alpha=0.2,
+            show_combined=False,
+            ncols=3,
+            lw=2.,
+            figsize=(6,6),
+            sharey=False,
+            filenames=construct_filenames('_trajectories_posterior_sampling', extensions)
+        )
+        
+        # All celltypes in one panel, no errorbars
+        self.plotter.plot_composition_trajectories_via_posterior_sampling(
+            iqr_alpha=0.,
+            show_combined=True,
+            ncols=3,
+            lw=2.,
+            figsize=(8,8),
+            sharey=False,
+            filenames=construct_filenames('_trajectories_posterior_sampling_combined', extensions)
+        )
+        
         
         if save_csv:
                 self.writer.write_cell_compositions(filename=f'{output_directory}/{self.prefix}_compositions.csv')
