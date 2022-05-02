@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+from typing import Dict, Optional
 
 
 class DeconvolutionDatatypeParametrization:
@@ -52,10 +53,11 @@ class DeconvolutionDatasetParametrization:
         bulk_anndata,
         bulk_time_col,
         feature_selection_method="overdispersed_bulk_and_high_sc",
+        cell_type_to_color_dict: Optional[Dict[str, str]] = None
     ):
         # Check provided columns are valid
-        assert sc_celltype_col in list(sc_anndata.obs.columns)
-        assert bulk_time_col in list(bulk_anndata.obs.columns)
+        assert sc_celltype_col in list(sc_anndata.obs.columns), "sc_celltype_col not found in sc_anndata"
+        assert bulk_time_col in list(bulk_anndata.obs.columns), "bulk_time_col not found in bulk data"
         
         
         self.sc_anndata = sc_anndata
@@ -65,6 +67,7 @@ class DeconvolutionDatasetParametrization:
 
         # Other params
         self.feature_selection_method = feature_selection_method
+        self.cell_type_to_color_dict = cell_type_to_color_dict
         self.verbose = True
 
         self.hypercluster = False
