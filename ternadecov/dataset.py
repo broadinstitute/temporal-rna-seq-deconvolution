@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from typing import List, Dict
 import anndata
+import colorcet as cc
 
 if "boltons" in sys.modules:
     from boltons.cacheutils import cachedproperty as cached_property
@@ -138,7 +139,25 @@ class DeconvolutionDataset:
         self.time_min = np.min(self.dpi_time_original_m)
         self.time_range = np.max(self.dpi_time_original_m) - self.time_min
         self.dpi_time_m = (self.dpi_time_original_m - self.time_min) / self.time_range
-
+        
+        # Determine default colors
+        if parametrization.cell_type_to_color_dict is not None:
+            # assert that every cell type has a color
+            for cell_type in self.cell_type_str_list:
+                assert cell_type in parametrization.cell_type_to_color_dict
+            # assert that every cell type has a unique color
+            for i in range(len(self.cell_type_str_list)):
+                color_i = parametrization.cell_type_to_color_dict[self.cell_type_str_list[i]]
+                for j in range(i + 1, len(self.cell_type_str_list)):
+                    color_j = parametrization.cell_type_to_color_dict[self.cell_type_str_list[j]]
+                    assert color_i != color_j
+            self.cell_type_to_color_dict = parametrization.cell_type_to_color_dict
+        else:
+            # use glasbey color palette
+            self.cell_type_to_color_dict = {
+                self.cell_type_str_list[i]: cc.glasbey[i] for i in range(len(self.cell_type_str_list))}
+        
+    # TODO: cache this method
     @property
     def cell_type_str_list(self) -> List[str]:
         # return sorted(list(set(self.sc_anndata.obs[self.sc_celltype_col])))
