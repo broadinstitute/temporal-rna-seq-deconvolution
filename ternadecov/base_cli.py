@@ -26,11 +26,9 @@ def get_argument_parser() -> argparse.ArgumentParser:
     parser_deconvolve.add_argument("--bulk-anndata", help="anndata for bulk data")
 
     parser_deconvolve.add_argument("--sc-anndata", help="anndata for sc data")
+    
     parser_deconvolve.add_argument(
-        "--sample-output-csv", help="output csv file for sample compositions"
-    )
-    parser_deconvolve.add_argument(
-        "--iterations", help="number of iterations", default=5000
+        "--iterations", help="number of iterations", default=5000, type=int
     )
     parser_deconvolve.add_argument(
         "--sc-celltype-column",
@@ -44,28 +42,28 @@ def get_argument_parser() -> argparse.ArgumentParser:
         help="feature selection method",
         default="overdispersed_bulk_and_high_sc",
     )
-    parser_deconvolve.add_argument(
-        "--hypercluster", help="perform hyperclustering", action="store_true"
-    )
-    parser_deconvolve.add_argument(
-        "--basis-function-type",
-        help="type of basis function for deconvolution",
-        default="polynomial",
-    )
-    parser_deconvolve.add_argument(
-        "--polynomial-degree", help="degree of polynomial", default=3
-    )
+
     parser_deconvolve.add_argument(
         "--log-frequency", help="frequency of logging during fitting", default=1000
     )
+    
+    parser_deconvolve.add_argument(
+        "--export-prefix", help="file prefix for expoerting", default=""
+    )
+    
+    parser_deconvolve.add_argument(
+        "--export-directory", help="directory path to export results"
+    )
+    
+    
 
     # Simulation
-    parser_simulate = subparsers.add_parser("simulate", help="simulate dataset")
-    parser_simulate.add_argument(
-        "--bulk-anndata", help="anndata for bulk data; required for betas"
-    )
-    parser_simulate.add_argument("--sc-anndata", help="anndata for sc data")
-    parser_simulate.add_argument("--trajectory-out", help="trajectory output")
+    # parser_simulate = subparsers.add_parser("simulate", help="simulate dataset")
+    # parser_simulate.add_argument(
+    #     "--bulk-anndata", help="anndata for bulk data; required for betas"
+    # )
+    # parser_simulate.add_argument("--sc-anndata", help="anndata for sc data")
+    # parser_simulate.add_argument("--trajectory-out", help="trajectory output")
 
     return parser
 

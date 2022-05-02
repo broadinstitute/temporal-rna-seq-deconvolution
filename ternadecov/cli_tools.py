@@ -4,6 +4,9 @@ import anndata
 
 from ternadecov.time_deconv import TimeRegularizedDeconvolutionModel
 from ternadecov.dataset import DeconvolutionDataset
+from ternadecov.parametrization import DeconvolutionDatatypeParametrization, DeconvolutionDatasetParametrization, TimeRegularizedDeconvolutionModelParametrization, TimeRegularizedDeconvolutionGPParametrization
+
+from ternadecov.deconvolution_exporter import DeconvolutionExporter
 
 
 def get_torch_device(args):
@@ -41,31 +44,39 @@ def do_deconvolution(args):
 
     if args.verbose:
         print("Preparing deconvolution...")
+        
+    # Use the default datatype parametrization
+    datatype_param = DeconvolutionDatatypeParametrization()
+        
+    # Prepare the dataset
     dataset = DeconvolutionDataset(
-        sc_anndata=sc_anndata,
-        sc_celltype_col=args.sc_celltype_column,
-        bulk_anndata=bulk_anndata,
-        bulk_time_col=args.bulk_time_column,
-        dtype_np=dtype_np,
-        dtype=dtype,
-        device=device,
-        feature_selection_method=args.feature_selection_method,
-        hypercluster=args.hypercluster,
+        types = datatype_param,
+        parametrization = DeconvolutionDatasetParametrization(
+            sc_anndata=sc_anndata,
+            sc_celltype_col=args.sc_celltype_column,
+            bulk_anndata=bulk_anndata,
+            bulk_time_col=args.bulk_time_column,
+            feature_selection_method=args.feature_selection_method,
+        )
     )
-
     if args.verbose:
         print("Running deconvolution...")
     deconvolution = TimeRegularizedDeconvolutionModel(
         dataset=dataset,
-        polynomial_degree=args.polynomial_degree,
-        basis_functions=args.basis_function_type,
-        device=device,
-        dtype=dtype,
+        trajectory_model_type='gp',
+        hyperparameters=TimeRegularizedDeconvolutionModelParametrization(),
+        trajectory_hyperparameters=TimeRegularizedDeconvolutionGPParametrization(),
+        types=datatype_param
     )
     deconvolution.fit_model(
-        n_iters=args.iterations, verbose=args.verbose, log_frequency=args.log_frequency
+        n_iters=args.iterations, 
+        verbose=args.verbose, 
+        log_frequency=args.log_frequency
     )
 
+    # Export the results
     if args.verbose:
         print("Saving results...")
-    deconvolution.write_sample_compositions(args.sample_output_csv)
+    exporter = DeconvolutionExporter(deconvolution, prefix = args.export_prefix)
+    exporter.export_results(args.export_directory)
+        
