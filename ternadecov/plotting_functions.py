@@ -106,11 +106,13 @@ def plot_composition_trajectories_via_posterior_sampling(
         n_samples_per_bin: int = 2000,
         n_windows: int = 10,
         savgol_polyorder: int = 1,
-        celltype_summarization: dict = dict(),
         figsize: Tuple[float, float] = (3., 2.),
+        celltype_summarization: dict = dict(),
         sharey: bool = True,
         lw: float = 1.,
+        cell_type_to_color_dict: Optional[Dict[str, str]] = None,
         filenames=(),
+        return_data=False,
         **kwargs):
     """Plot the composition trajectories"""
 
@@ -138,9 +140,15 @@ def plot_composition_trajectories_via_posterior_sampling(
         n_windows=n_windows,
         savgol_polyorder=savgol_polyorder)
 
-    # plot
-    prop_cycle = matplotlib.pyplot.rcParams["axes.prop_cycle"]
-    colors = prop_cycle.by_key()["color"]
+    # plotting
+    
+    # take care of colors
+    if cell_type_to_color_dict is None:
+        cell_type_to_color_dict = self.deconvolution.dataset.cell_type_to_color_dict
+    
+    for cell_type in cell_type_labels:
+        assert cell_type in cell_type_to_color_dict, f"Color for cell type {cell_type} is not specified!"
+    colors = list(map(cell_type_to_color_dict.get, cell_type_labels))
     
     n_cell_types = pi_sampled_scn.shape[1]
     xi_n = xi_nq.cpu().numpy()[:, 0]
@@ -152,13 +160,14 @@ def plot_composition_trajectories_via_posterior_sampling(
         nrows = int(np.ceil(len(cell_type_labels) / ncols))
         fig, axs = plt.subplots(nrows, ncols, figsize=(figsize[0] * ncols, figsize[1] * nrows), sharey=sharey)
     
+    actual_time_n = self.deconvolution.dataset.time_min + self.deconvolution.dataset.time_range * xi_n
+    
     for i_cell_type in range(n_cell_types):
         color = colors[i_cell_type]
         
         if not show_combined:
             ax = axs.flatten()[i_cell_type]
         
-        actual_time_n = self.deconvolution.dataset.time_min + self.deconvolution.dataset.time_range * xi_n
         ax.plot(
             actual_time_n,
             iqr_mid_cn[i_cell_type],
@@ -196,3 +205,10 @@ def plot_composition_trajectories_via_posterior_sampling(
     
     for filename in filenames:
         matplotlib.pyplot.savefig(filename)
+        
+    if return_data:
+        return {
+            'actual_time_n': actual_time_n,
+            'iqr_mid_cn': iqr_mid_cn,
+            'cell_type_labels': cell_type_labels,
+        }
