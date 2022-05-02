@@ -5,14 +5,12 @@ from typing import Dict
 import tqdm
 import copy
 import time
-
+from ternadecov.parametrization import DeconvolutionDatatypeParametrization, DeconvolutionDatasetParametrization
 from ternadecov.dataset import SingleCellDataset, DeconvolutionDataset
 from ternadecov.simulator import (
     simulate_data,
     generate_anndata_from_sim,
     calculate_trajectory_prediction_error,
-    simulate_with_sigmoid_proportions,
-    sigmoid,
 )
 from ternadecov.time_deconv import TimeRegularizedDeconvolutionModel
 
@@ -22,9 +20,7 @@ def evaluate_with_trajectory(
     n_samples: int,
     trajectory_type: str,
     trajectory_coef: Dict,
-    dtype_np,
-    dtype,
-    device,
+    types: DeconvolutionDatatypeParametrization,
     deconvolution_params: Dict,
     n_iters=5_000,
 ):
@@ -47,25 +43,21 @@ def evaluate_with_trajectory(
     )
     simulated_bulk = generate_anndata_from_sim(sim_res, reference_dataset=sc_dataset)
 
-    # Prepare deconvolution dataset
+    
     ebov_simulated_dataset = DeconvolutionDataset(
-        sc_anndata=sc_dataset.sc_anndata,
-        sc_celltype_col="Subclustering_reduced",
-        bulk_anndata=simulated_bulk,
-        bulk_time_col="time",
-        dtype_np=dtype_np,
-        dtype=dtype,
-        device=device,
-        feature_selection_method="common",
+        types = types, 
+        parametrization = DeconvolutionDatasetParametrization(
+            sc_anndata=sc_dataset.sc_anndata,
+            sc_celltype_col="Subclustering_reduced",
+            bulk_anndata=simulated_bulk,
+            bulk_time_col="time",
+        ),
     )
 
     # Prepare deconvolution object
     pseudo_time_reg_deconv_sim = TimeRegularizedDeconvolutionModel(
         dataset=ebov_simulated_dataset,
-        # polynomial_degree=3,
-        # basis_functions="polynomial",
-        device=device,
-        dtype=dtype,
+        types = types,
         **deconvolution_params,
     )
 
