@@ -3,6 +3,7 @@ torch
 numpy
 matplotlib
 scanpy
+pyro
 pandas
 sphinx>=2.1
 sphinx-rtd-theme
