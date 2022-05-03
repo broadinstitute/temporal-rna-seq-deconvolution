@@ -3,7 +3,8 @@ torch
 numpy
 matplotlib
 scanpy
-pyro
+pyro-api==0.1.2
+pyro-ppl==1.8.0
 pandas
 sphinx>=2.1
 sphinx-rtd-theme
