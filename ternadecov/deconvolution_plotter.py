@@ -11,10 +11,11 @@ from typing import Optional, Tuple, Dict
 from ternadecov.time_deconv import TimeRegularizedDeconvolutionModel
 from ternadecov.plotting_functions import generate_posterior_samples
 
+
 class DeconvolutionPlotter:
     def __init__(self, deconvolution: TimeRegularizedDeconvolutionModel):
         self.deconvolution = deconvolution
-        
+
     def plot_loss(self, filenames=()) -> matplotlib.axes.Axes:
         """Plot of ELBO loss during training from the deconvolution object.
         
@@ -35,7 +36,7 @@ class DeconvolutionPlotter:
             matplotlib.pyplot.savefig(filename)
 
         return ax
-        
+
     def plot_phi_g_distribution(self, filenames=()) -> matplotlib.axes.Axes:
         """Plot the distribution of $phi_g$ values from the param_store.
         
@@ -78,13 +79,10 @@ class DeconvolutionPlotter:
         for filename in filenames:
             matplotlib.pyplot.savefig(filename)
 
-        return ax    
-    
+        return ax
+
     def plot_sample_compositions_scatter(
-        self, 
-        figsize=(16, 9), 
-        ignore_hypercluster=False, 
-        filenames=()
+        self, figsize=(16, 9), ignore_hypercluster=False, filenames=()
     ):
         """Plot a scatter plot of the sample composition facetted by celltype
 
@@ -93,7 +91,7 @@ class DeconvolutionPlotter:
         :param ignore_hypercluster: ignore hyperclustering and plot individual clusters without summarization
         :param filenames: An iterable of filenames to save the plot to.
         """
-        
+
         if self.deconvolution.dataset.is_hyperclustered:
             if ignore_hypercluster:
                 self.__plot_sample_compositions_scatter_default(figsize=figsize)
@@ -101,12 +99,14 @@ class DeconvolutionPlotter:
                 self.__plot_sample_compositions_scatter_hyperclustered(figsize=figsize)
         else:
             if ignore_hypercluster:
-                raise ValueError("ignore_hypercluster is not supported for non-hyperclustered objecets")
+                raise ValueError(
+                    "ignore_hypercluster is not supported for non-hyperclustered objecets"
+                )
             self.__plot_sample_compositions_scatter_default(figsize=figsize)
-        
+
         for filename in filenames:
             matplotlib.pyplot.savefig(filename)
-            
+
     def plot_composition_trajectories_via_posterior_sampling(
         self,
         show_iqr: bool = True,
@@ -149,8 +149,10 @@ class DeconvolutionPlotter:
             Everything else
             
         """
-        
-        assert self.deconvolution.trajectory_model_type == 'gp', "plot_composition_trajectories_via_posterior_sampling is only possible for GP deconvolution"
+
+        assert (
+            self.deconvolution.trajectory_model_type == "gp"
+        ), "plot_composition_trajectories_via_posterior_sampling is only possible for GP deconvolution"
 
         # obtain posterior samples
         xi_nq, pi_sampled_scn = generate_posterior_samples(
@@ -258,7 +260,7 @@ class DeconvolutionPlotter:
                 "iqr_mid_cn": iqr_mid_cn,
                 "cell_type_labels": cell_type_labels,
             }
-        
+
     def plot_gp_composition_trajectories(self, n_samples=500, filenames=()):
         """" Plot per-celltype (deprecated)
         
@@ -267,9 +269,11 @@ class DeconvolutionPlotter:
         :param filenames: Filenames to save to
 
         """
-        
-        assert self.deconvolution.trajectory_model_type == 'gp', "plot_composition_trajectories_via_posterior_sampling is only possible for GP deconvolution"
-        
+
+        assert (
+            self.deconvolution.trajectory_model_type == "gp"
+        ), "plot_composition_trajectories_via_posterior_sampling is only possible for GP deconvolution"
+
         with torch.no_grad():
             traj = self.deconvolution.population_proportion_model
             xi_new_nq = torch.linspace(
@@ -406,7 +410,6 @@ class DeconvolutionPlotter:
 
         for filename in filenames:
             matplotlib.pyplot.savefig(filename)
-    
 
     def plot_sample_compositions_boxplot(self, figsize=(16, 9), filenames=()):
         """Plot sample compositions in boxplot form
@@ -462,14 +465,12 @@ class DeconvolutionPlotter:
 
         return ax
 
-
-
     def plot_composition_trajectories(
-        self, 
-        show_hypercluster=False, 
-        show_sampled_trajectories = False,
-        filenames=(), 
-        **kwargs
+        self,
+        show_hypercluster=False,
+        show_sampled_trajectories=False,
+        filenames=(),
+        **kwargs,
     ):
         """Plot the inferred composition trajectories
         
@@ -603,38 +604,6 @@ class DeconvolutionPlotter:
             matplotlib.pyplot.savefig(filename)
 
         return ax
-
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
 
     def __plot_sample_compositions_scatter_default(self, figsize, filenames=()):
         """Plot a facetted scatter plot of the individual sample compositions for regular processing

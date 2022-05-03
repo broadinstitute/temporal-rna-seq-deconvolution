@@ -12,8 +12,8 @@ from ternadecov.stats_helpers import NegativeBinomialAltParam
 def generate_anndata_from_sim(sim_res, reference_dataset):
     """Generate AnnData object from the simulation results
 
-    :param sim_res: simulation results dictonary
-    :param reference_deconvolution: reference deconvolution object
+    :param sim_res: Simulation results dictonary
+    :param reference_deconvolution: Reference deconvolution object
     """
 
     var_tmp = pd.DataFrame({"gene": list(reference_dataset.sc_anndata.var.index)})
@@ -53,9 +53,11 @@ def plot_simulated_proportions(
     if show_trajectories:
         if sim_res["trajectory_params"]["type"] == "linear":
             n_samples = 1000
-            t_m = (
-                np.linspace(0.0, 1.0, n_samples) * dataset.time_range + dataset.time_min
-            )
+
+            t_min = torch.min(sim_res["t_m"]).item()
+            t_max = torch.max(sim_res["t_m"]).item()
+
+            t_m = np.linspace(t_min, t_max, n_samples)
             trajectories_cm = torch.zeros(dataset.num_cell_types, n_samples)
 
             a = sim_res["trajectory_params"]["a"]
