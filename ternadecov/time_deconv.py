@@ -12,7 +12,7 @@ from ternadecov.parametrization import (
     DeconvolutionDatatypeParametrization,
     TimeRegularizedDeconvolutionModelParametrization,
 )
-from ternadecov.trajectories import VGPTrajectoryModule, BasicTrajectoryModule
+from ternadecov.trajectories import VGPTrajectoryModule, BasicTrajectoryModule, NonTrajectoryModule
 from ternadecov.stats_helpers import NegativeBinomialAltParam
 
 # Indices:
@@ -32,7 +32,7 @@ def generate_batch(
     }
 
 
-_TRAJECTORY_MODEL_TYPES = {"polynomial", "gp"}
+_TRAJECTORY_MODEL_TYPES = {"polynomial", "gp", "nontrajectory"}
 
 
 class TimeRegularizedDeconvolutionModel:
@@ -95,7 +95,15 @@ class TimeRegularizedDeconvolutionModel:
                 device=self.device,
                 dtype=self.dtype,
             )
+        elif trajectory_model_type == 'nontrajectory':
+            self.population_proportion_model = NonTrajectoryModule(
+                num_cell_types=self.dataset.num_cell_types,
+                num_samples=self.dataset.num_samples,
+                device=self.device,
+                dtype=self.dtype,
+            )
 
+            
         else:
             raise ValueError
 
