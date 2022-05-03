@@ -1,1 +1,12 @@
 bluepy
+torch
+numpy
+matplotlib
+scanpy
+pyro
+pandas
+sphinx>=2.1
+sphinx-rtd-theme
+sphinx-autodoc-typehints
+sphinxcontrib-programoutput
+sphinx-argparse
