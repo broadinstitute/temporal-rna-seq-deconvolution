@@ -32,8 +32,8 @@ class SensitivityAnalyzer:
         dataset = DeconvolutionDataset(
             parametrization=dataset_param, types=datatype_param,
         )
-        
-        print(f'sc_anndata shape {dataset_param.sc_anndata.shape}')
+
+        print(f"sc_anndata shape {dataset_param.sc_anndata.shape}")
 
         # Make the deconvolution model
         model = TimeRegularizedDeconvolutionModel(
@@ -76,7 +76,7 @@ class SensitivityAnalyzer:
     ):
         """Scan the defined parameter with values in the specified range and save results"""
         results = {}
-        
+
         dataset_param = copy.deepcopy(dataset_param)
 
         if parameter_variable_type == "continuous":
@@ -91,7 +91,7 @@ class SensitivityAnalyzer:
             raise ValueError(
                 f"Unknown parameter_variable_type: {parameter_variable_type}"
             )
-                
+
         model_param_internal = copy.deepcopy(model_param)
         trajectory_param_internal = copy.deepcopy(trajectory_param)
         dataset_param_internal = copy.deepcopy(dataset_param)

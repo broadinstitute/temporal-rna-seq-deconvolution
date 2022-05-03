@@ -82,8 +82,6 @@ class DeconvolutionDataset:
         types: DeconvolutionDatatypeParametrization,
         parametrization: DeconvolutionDatasetParametrization,
     ):
-        
-
 
         self.sc_celltype_col = parametrization.sc_celltype_col
         self.bulk_time_col = parametrization.bulk_time_col
@@ -139,7 +137,7 @@ class DeconvolutionDataset:
         self.time_min = np.min(self.dpi_time_original_m)
         self.time_range = np.max(self.dpi_time_original_m) - self.time_min
         self.dpi_time_m = (self.dpi_time_original_m - self.time_min) / self.time_range
-        
+
         # Determine default colors
         if parametrization.cell_type_to_color_dict is not None:
             # assert that every cell type has a color
@@ -147,16 +145,22 @@ class DeconvolutionDataset:
                 assert cell_type in parametrization.cell_type_to_color_dict
             # assert that every cell type has a unique color
             for i in range(len(self.cell_type_str_list)):
-                color_i = parametrization.cell_type_to_color_dict[self.cell_type_str_list[i]]
+                color_i = parametrization.cell_type_to_color_dict[
+                    self.cell_type_str_list[i]
+                ]
                 for j in range(i + 1, len(self.cell_type_str_list)):
-                    color_j = parametrization.cell_type_to_color_dict[self.cell_type_str_list[j]]
+                    color_j = parametrization.cell_type_to_color_dict[
+                        self.cell_type_str_list[j]
+                    ]
                     assert color_i != color_j
             self.cell_type_to_color_dict = parametrization.cell_type_to_color_dict
         else:
             # use glasbey color palette
             self.cell_type_to_color_dict = {
-                self.cell_type_str_list[i]: cc.glasbey[i] for i in range(len(self.cell_type_str_list))}
-        
+                self.cell_type_str_list[i]: cc.glasbey[i]
+                for i in range(len(self.cell_type_str_list))
+            }
+
     # TODO: cache this method
     @property
     def cell_type_str_list(self) -> List[str]:

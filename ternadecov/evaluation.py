@@ -5,7 +5,10 @@ from typing import Dict
 import tqdm
 import copy
 import time
-from ternadecov.parametrization import DeconvolutionDatatypeParametrization, DeconvolutionDatasetParametrization
+from ternadecov.parametrization import (
+    DeconvolutionDatatypeParametrization,
+    DeconvolutionDatasetParametrization,
+)
 from ternadecov.dataset import SingleCellDataset, DeconvolutionDataset
 from ternadecov.simulator import (
     simulate_data,
@@ -43,10 +46,9 @@ def evaluate_with_trajectory(
     )
     simulated_bulk = generate_anndata_from_sim(sim_res, reference_dataset=sc_dataset)
 
-    
     ebov_simulated_dataset = DeconvolutionDataset(
-        types = types, 
-        parametrization = DeconvolutionDatasetParametrization(
+        types=types,
+        parametrization=DeconvolutionDatasetParametrization(
             sc_anndata=sc_dataset.sc_anndata,
             sc_celltype_col="Subclustering_reduced",
             bulk_anndata=simulated_bulk,
@@ -56,9 +58,7 @@ def evaluate_with_trajectory(
 
     # Prepare deconvolution object
     pseudo_time_reg_deconv_sim = TimeRegularizedDeconvolutionModel(
-        dataset=ebov_simulated_dataset,
-        types = types,
-        **deconvolution_params,
+        dataset=ebov_simulated_dataset, types=types, **deconvolution_params,
     )
 
     # Deconvolve

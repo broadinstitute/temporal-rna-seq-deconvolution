@@ -27,11 +27,11 @@ def generate_anndata_from_sim(sim_res, reference_dataset):
 
 
 def plot_simulated_proportions(
-    sim_res, 
+    sim_res,
     dataset,
-    show_sample_proportions=True, 
+    show_sample_proportions=True,
     show_trajectories=True,
-    figsize = (20,10)
+    figsize=(20, 10),
 ):
     """Plot simulated proportion results
 
@@ -47,34 +47,36 @@ def plot_simulated_proportions(
     o = torch.argsort(sim_res["t_m"])
 
     fig, ax = matplotlib.pyplot.subplots(
-        sum((show_sample_proportions, show_trajectories)),
-        figsize=figsize
+        sum((show_sample_proportions, show_trajectories)), figsize=figsize
     )
 
     if show_trajectories:
-        if sim_res['trajectory_params']['type'] == 'linear':
+        if sim_res["trajectory_params"]["type"] == "linear":
             n_samples = 1000
-            t_m = np.linspace(0.,1.,n_samples) * dataset.time_range + dataset.time_min
+            t_m = (
+                np.linspace(0.0, 1.0, n_samples) * dataset.time_range + dataset.time_min
+            )
             trajectories_cm = torch.zeros(dataset.num_cell_types, n_samples)
-            
-            a = sim_res["trajectory_params"]['a']
-            b = sim_res['trajectory_params']['b']
-            
+
+            a = sim_res["trajectory_params"]["a"]
+            b = sim_res["trajectory_params"]["b"]
+
             for i in range(dataset.num_cell_types):
                 trajectories_cm[i, :] = torch.Tensor(list(a[i] * x + b[i] for x in t_m))
             # Normalize trajectories_cm
             trajectories_cm = torch.nn.functional.softmax(trajectories_cm, dim=0)
-            
-            ax[0].plot(t_m, trajectories_cm.T, )
+
+            ax[0].plot(
+                t_m, trajectories_cm.T,
+            )
             ax[0].legend(dataset.cell_type_str_list)
             ax[0].set_title("True simulated trajectories")
             ax[0].set_xlabel("Set time")
             ax[0].set_ylabel("Proportions")
-            
+
         else:
             raise NotImplementedError
-        
-        
+
     if show_sample_proportions:
         for i in range(sim_res["cell_pop_cm"].shape[0]):
             ax[1].scatter(sim_res["t_m"][o], sim_res["cell_pop_cm"][i, o])
@@ -129,7 +131,7 @@ def simulate_data(
     num_cell_types = w_hat_gc.shape[1]
 
     # Get equidistant time samples
-    t_m = torch.linspace(0.,1.,num_samples) * (end_time - start_time) + start_time
+    t_m = torch.linspace(0.0, 1.0, num_samples) * (end_time - start_time) + start_time
 
     if trajectory_type == "sigmoid":
         proportions_sample = sample_sigmoid_proportions(

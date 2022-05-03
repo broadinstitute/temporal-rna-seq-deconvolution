@@ -26,7 +26,7 @@ def get_argument_parser() -> argparse.ArgumentParser:
     parser_deconvolve.add_argument("--bulk-anndata", help="anndata for bulk data")
 
     parser_deconvolve.add_argument("--sc-anndata", help="anndata for sc data")
-    
+
     parser_deconvolve.add_argument(
         "--iterations", help="number of iterations", default=5000, type=int
     )
@@ -46,16 +46,14 @@ def get_argument_parser() -> argparse.ArgumentParser:
     parser_deconvolve.add_argument(
         "--log-frequency", help="frequency of logging during fitting", default=1000
     )
-    
+
     parser_deconvolve.add_argument(
         "--export-prefix", help="file prefix for expoerting", default=""
     )
-    
+
     parser_deconvolve.add_argument(
         "--export-directory", help="directory path to export results"
     )
-    
-    
 
     # Simulation
     # parser_simulate = subparsers.add_parser("simulate", help="simulate dataset")

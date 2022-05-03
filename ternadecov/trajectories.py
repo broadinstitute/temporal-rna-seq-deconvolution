@@ -35,98 +35,100 @@ class TrajectoryModule:
 class ParameterizedTrajectoryModule(TrajectoryModule, Parameterized):
     pass
 
+
 class NonTrajectoryModule(TrajectoryModule):
     def __init__(
         self,
         num_cell_types: int,
         num_samples: int,
         device: torch.device,
-        dtype: torch.dtype
+        dtype: torch.dtype,
     ):
         self.device = device
         self.dtype = dtype
         self.num_cell_types = num_cell_types
         self.num_samples = num_samples
-        
-        self.unnorm_cell_pop_loc_prior_mc = np.zeros((self.num_samples, self.num_cell_types))
-        self.unnorm_cell_pop_scale_prior_mc = np.ones((self.num_samples, self.num_cell_types))
-        
-        self.unnorm_cell_pop_loc_posterior_mc = np.zeros((self.num_samples, self.num_cell_types))
-        self.unnorm_cell_pop_scale_posterior_mc = np.ones((self.num_samples, self.num_cell_types))
-        
-    def model(self, xi_mq: torch.Tensor) -> torch.Tensor:  
-        
+
+        self.unnorm_cell_pop_loc_prior_mc = np.zeros(
+            (self.num_samples, self.num_cell_types)
+        )
+        self.unnorm_cell_pop_scale_prior_mc = np.ones(
+            (self.num_samples, self.num_cell_types)
+        )
+
+        self.unnorm_cell_pop_loc_posterior_mc = np.zeros(
+            (self.num_samples, self.num_cell_types)
+        )
+        self.unnorm_cell_pop_scale_posterior_mc = np.ones(
+            (self.num_samples, self.num_cell_types)
+        )
+
+    def model(self, xi_mq: torch.Tensor) -> torch.Tensor:
+
         unnorm_cell_pop_loc_prior_mc = pyro.param(
             "unnorm_cell_pop_loc_prior_mc",
             torch.tensor(
-                    self.unnorm_cell_pop_loc_prior_mc,
-                    device = self.device,
-                    dtype = self.dtype,
+                self.unnorm_cell_pop_loc_prior_mc, device=self.device, dtype=self.dtype,
             ),
         )
-        
+
         unnorm_cell_pop_scale_prior_mc = pyro.param(
             "unnorm_cell_pop_scale_prior_mc",
             torch.tensor(
                 self.unnorm_cell_pop_scale_prior_mc,
-                device = self.device,
-                dtype = self.dtype,                
-            )
+                device=self.device,
+                dtype=self.dtype,
+            ),
         )
-        
+
         unnorm_cell_pop_mc = pyro.sample(
             "unnorm_cell_pop_mc",
             dist.Normal(
-                loc = unnorm_cell_pop_loc_prior_mc,
-                scale = unnorm_cell_pop_scale_prior_mc,
+                loc=unnorm_cell_pop_loc_prior_mc, scale=unnorm_cell_pop_scale_prior_mc,
             ).to_event(2),
         )
 
-        norm_cell_pop_mc = torch.nn.functional.softmax(
-            unnorm_cell_pop_mc, 
-            dim=-1
-        )
-        
+        norm_cell_pop_mc = torch.nn.functional.softmax(unnorm_cell_pop_mc, dim=-1)
+
         assert norm_cell_pop_mc.shape == (self.num_samples, self.num_cell_types,)
-        
+
         return norm_cell_pop_mc
-    
+
     def guide(self, xi_mq: torch.Tensor) -> torch.Tensor:
-        
+
         unnorm_cell_pop_loc_posterior_mc = pyro.param(
             "unnorm_cell_pop_loc_posterior_mc",
             torch.tensor(
                 self.unnorm_cell_pop_loc_posterior_mc,
-                device = self.device,
-                dtype = self.dtype,
-            )
+                device=self.device,
+                dtype=self.dtype,
+            ),
         )
-        
+
         unnorm_cell_pop_scale_posterior_mc = pyro.param(
             "unnorm_cell_pop_scale_posterior_mc",
             torch.tensor(
                 self.unnorm_cell_pop_scale_posterior_mc,
-                device = self.device,
-                dtype = self.dtype,                
-            )
+                device=self.device,
+                dtype=self.dtype,
+            ),
         )
-        
+
         unnorm_cell_pop_posterior_mc = pyro.sample(
             "unnorm_cell_pop_mc",
             dist.Normal(
-                loc = unnorm_cell_pop_loc_posterior_mc,
-                scale = unnorm_cell_pop_scale_posterior_mc,
-            ).to_event(2)
+                loc=unnorm_cell_pop_loc_posterior_mc,
+                scale=unnorm_cell_pop_scale_posterior_mc,
+            ).to_event(2),
         )
-        
+
         norm_cell_pop_mc = torch.nn.functional.softmax(
-            unnorm_cell_pop_posterior_mc, 
-            dim=-1
+            unnorm_cell_pop_posterior_mc, dim=-1
         )
-        
+
         return norm_cell_pop_mc
-        
-        
+
+
 class BasicTrajectoryModule(TrajectoryModule):
     def __init__(
         self,
@@ -337,7 +339,7 @@ class BasicTrajectoryModule(TrajectoryModule):
         cell_pop_mc = pyro.sample(
             "cell_pop_mc", dist.Delta(v=cell_pop_posterior_loc_mc).to_event(2),
         )
-        
+
         return cell_pop_mc
 
     def get_composition_trajectories(self, dataset, n_intervals=1000):
