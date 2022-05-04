@@ -7,7 +7,16 @@ from ternadecov.time_deconv import TimeRegularizedDeconvolutionModel
 
 
 class DeconvolutionExporter:
+    """Class for automated exporting of the deconvolution results"""
+
     def __init__(self, deconvolution: TimeRegularizedDeconvolutionModel, prefix=""):
+        """Initializer for DeconvolutionExporter
+        
+        :param self: An instance of class
+        :param deconvolution: A deconvolution object to plot data for 
+        :param prefix: filename prefix to use in all exporting
+        """
+
         self.deconvolution = deconvolution
         self.plotter = DeconvolutionPlotter(self.deconvolution)
         self.writer = DeconvolutionWriter(self.deconvolution)
@@ -16,6 +25,14 @@ class DeconvolutionExporter:
     def export_results(
         self, output_directory, save_pdf=True, save_png=True, save_csv=True
     ):
+        """Export all the results
+        
+        :param self: An instance of object
+        :param output_directory: A directory location to export the results to 
+        :param save_pdf: Save the figures as PDF?
+        :param save_png: Save the figures as PNG?
+        :param save_csv: Save the numerical output as CSV
+        """
 
         extensions = []
         if save_pdf:
@@ -24,19 +41,13 @@ class DeconvolutionExporter:
             extensions.append(".png")
 
         def construct_filenames(plot_name, extensions):
+            """Helper function for constructing filesnames for export"""
+
             loss_plot_filename_prefix = f"{output_directory}/{self.prefix}{plot_name}"
             loss_filenames = (loss_plot_filename_prefix + x for x in extensions)
             return loss_filenames
 
         self.plotter.plot_loss(filenames=construct_filenames("_loss", extensions))
-
-        #         self.plotter.plot_composition_trajectories(
-        #             filenames=construct_filenames('_trajectories', extensions)
-        #         )
-
-        #         self.plotter.plot_gp_composition_trajectories(
-        #             filenames=construct_filenames('_gp_composition', extensions)
-        #         )
 
         self.plotter.plot_phi_g_distribution(
             filenames=construct_filenames("_phi_g", extensions)

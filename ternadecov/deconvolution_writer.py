@@ -9,7 +9,14 @@ from typing import Dict, List
 
 
 class DeconvolutionWriter:
+    """Writer for deconvolution results"""
+
     def __init__(self, deconvolution: TimeRegularizedDeconvolutionModel):
+        """Initializer for DeconvolutionWriter
+        
+        :param self: Instance of object
+        :param deconvolution: Instance of TimeRegularizedDeconvolutionModel to plot
+        """
         self.deconvolution = deconvolution
 
     def write_summarized_cell_compositions(
@@ -25,6 +32,8 @@ class DeconvolutionWriter:
         :param filename: name of csv file to save table to
         :param n_intervals: number of points to evaluate the trajectories at
         :param return_table: flag to return the resulting data as a pandas DataFrame
+        
+        :return: The Dataframe that is saved (optional)
         """
 
         traj = self.deconvolution.population_proportion_model.get_composition_trajectories(
@@ -51,6 +60,8 @@ class DeconvolutionWriter:
             composition_summarized_tk.numpy(), columns=celltype_summarization.keys()
         )
         ret_df["Time"] = times.numpy()
+
+        # FIXME: "Blood" and "Tissue" needs to be replaced with values from the summarization
         long_df = pd.melt(
             ret_df,
             ("Time",),
@@ -69,11 +80,11 @@ class DeconvolutionWriter:
         self, filename=None, n_intervals=100, return_table=False
     ):
         """Write cell composition trajectories to csv file
-        
+
+        :param self: Instance of object
         :param filename: name of file to csv data to
         :param n_intervals: number of intervals to evaluate the trajectories at:
         :param return_table: optionally return the calculated table as a pandas df
-        
         """
         traj = self.deconvolution.population_proportion_model.get_composition_trajectories(
             self.deconvolution.dataset, n_intervals=n_intervals
@@ -100,12 +111,24 @@ class DeconvolutionWriter:
             return long_df
 
     def write_trajectory_coefficients(self, filename, returnTable=True):
+        """Write trajectory coefficients to file (Not Implemented)"""
         raise NotImplementedError()
 
     def write_sample_draws_quantiles(
-        self, filename=None, n_draws=100, return_table=True
+        self, filename=None, n_draws=1000, return_table=True
     ):
-        assert self.deconvolution.trajectory_model_type == "gp"
+        """Write sample draws as quantiles
+        
+        :param self: Instance of object
+        :param filename: Filename to save data to
+        :param n_draws: Number of draws for the quantile estimates
+        :param return_table: Return the table
+        :return: the table with the summary information
+        """
+
+        assert (
+            self.deconvolution.trajectory_model_type == "gp"
+        ), "This functionality is only available for GP models"
 
         n_samples = self.deconvolution.dataset.num_samples
         n_celltypes = self.deconvolution.dataset.num_cell_types

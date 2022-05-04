@@ -71,6 +71,8 @@ def get_argument_parser() -> argparse.ArgumentParser:
 
 
 def main():
+    """Main entry function for cli"""
+
     parser = get_argument_parser()
     args = parser.parse_args()
 

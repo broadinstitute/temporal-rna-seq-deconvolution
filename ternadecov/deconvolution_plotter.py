@@ -1,6 +1,5 @@
 """Deconvolution plotter for plotting figures from deconvolution"""
 
-
 import matplotlib
 import matplotlib.pyplot
 import torch
@@ -10,13 +9,20 @@ from matplotlib.pyplot import cm
 import pandas as pd
 import seaborn as sns
 from typing import Optional, Tuple, Dict
-
 from ternadecov.time_deconv import TimeRegularizedDeconvolutionModel
 from ternadecov.plotting_functions import generate_posterior_samples
 
 
 class DeconvolutionPlotter:
+    """Class for plotting deconvolution results"""
+
     def __init__(self, deconvolution: TimeRegularizedDeconvolutionModel):
+        """Initializer for DeconvolutionPlotter
+            
+        :param self: Instance of object
+        :param deconvolution: A TimeRegularizedDeconvolutionModel to plot the results of
+        """
+
         self.deconvolution = deconvolution
 
     def plot_loss(self, filenames=()) -> matplotlib.axes.Axes:
@@ -330,16 +336,27 @@ class DeconvolutionPlotter:
         spacing=1,
         filenames=(),
     ):
+        """Plot individual sample compositions as boxplots representing confidence in predictions
+        
+        :param self: An instance of object
+        :param n_draws: Number of draws to perform for CI estimation
+        :param verbose: Verbosity
+        :param figsize: Size of figure to plot
+        :param dpi: DPI of output figure
+        :param spacing: x-axis spacing of groups of samples from different timepoints
+        :param filenames: Filenames to save the files as
+        """
+
         # l -- draw index
 
-        assert self.deconvolution.trajectory_model_type == "gp"
+        assert (
+            self.deconvolution.trajectory_model_type == "gp"
+        ), "Only GP deconvolution is supported!"
 
         n_samples = self.deconvolution.dataset.num_samples
         n_celltypes = self.deconvolution.dataset.num_cell_types
         cell_pop_lmc = torch.zeros([n_draws, n_samples, n_celltypes])
         sort_order = torch.argsort(self.deconvolution.dataset.t_m)
-
-        # times_sorted = self.deconvolution.dataset.t_m[sort_order]
 
         fig_nrow = math.ceil(math.sqrt(n_celltypes))
         fig_ncol = math.ceil(math.sqrt(n_celltypes))
@@ -420,7 +437,6 @@ class DeconvolutionPlotter:
         :param self: An instance of self.
         :param figsize: Figure size
         :param filenames: Filename to save the plots to
-        
         """
 
         if self.deconvolution.trajectory_model_type == "polynomial":
@@ -434,28 +450,21 @@ class DeconvolutionPlotter:
             )
 
         t_m = self.deconvolution.dataset.t_m.clone().detach().cpu()
-
         sort_order = torch.argsort(self.deconvolution.dataset.t_m)
-
         n_cell_types = cell_pop.shape[1]
-
         n_rows = math.ceil(math.sqrt(n_cell_types))
         n_cols = math.ceil(n_cell_types / n_rows)
-
         fig, ax = matplotlib.pyplot.subplots(n_rows, n_cols, figsize=figsize)
 
         for i in range(cell_pop.shape[1]):
             r_i = int(i // n_rows)
             c_i = int(i % n_rows)
-
             t = (
                 t_m[sort_order] * self.deconvolution.dataset.time_range
                 + self.deconvolution.dataset.time_min
             )
             prop = cell_pop[sort_order, i].clone().detach().cpu()
-
             df1 = pd.DataFrame({"time": t, "proportion": prop})
-
             sns.boxplot(
                 x="time", y="proportion", data=df1, ax=ax[c_i, r_i], color=cm.tab10(i)
             )
@@ -480,19 +489,20 @@ class DeconvolutionPlotter:
         :param self: An instance of self
         :param show_hypercluster: Show hyper cluster
         :param show_sampled_trajectories: 
-        
+        :param filenames: Names of files to save results to
+        :param \**kwargs:
+            See below
+
+        :Keyword Arguments:
+            Everything else
         """
 
         if show_sampled_trajectories:
-
             if self.deconvolution.dataset.is_hyperclustered and not show_hypercluster:
                 raise NotImplementedError
 
             else:
-                # TODO: Fix x axis scale
-
                 n_samples = kwargs["n_samples"]
-
                 with torch.no_grad():
                     traj = self.deconvolution.population_proportion_model
                     xi_new_nq = torch.linspace(
@@ -572,7 +582,18 @@ class DeconvolutionPlotter:
     def plot_summarized_cell_compositions(
         self, celltype_summarization, n_intervals=100, filenames=(), **kwargs
     ):
-        """Plot the composition trajectories"""
+        """Plot the composition trajectories
+        
+        :param self:
+        :param celltype_summarization:
+        :param n_intervals:
+        :param filenames:
+        :param \**kwargs:
+            See below
+
+        :Keyword Arguments:
+            Everything else
+        """
 
         traj = self.deconvolution.population_proportion_model.get_composition_trajectories(
             self.deconvolution.dataset, n_intervals=n_intervals
@@ -588,7 +609,7 @@ class DeconvolutionPlotter:
                 if x in celltype_summarization[t]:
                     index_v[i] = k
 
-        # k is the summarized c
+        # k index is the summarized c index
         composition_summarized_tk = torch.zeros(
             (traj["norm_comp_tc"].shape[0], len(celltype_summarization))
         )
@@ -611,7 +632,10 @@ class DeconvolutionPlotter:
     def __plot_sample_compositions_scatter_default(self, figsize, filenames=()):
         """Plot a facetted scatter plot of the individual sample compositions for regular processing
 
+        :param self: An instance of object
         :param figsize: tuple of size 2 with figure size information
+        :param filenames: A list of file names to plot to 
+        
         """
         t_m = self.deconvolution.dataset.t_m.clone().detach().cpu()
 
@@ -662,7 +686,9 @@ class DeconvolutionPlotter:
     def __plot_sample_compositions_scatter_hyperclustered(self, figsize, filenames=()):
         """Plot a facetted scatter plot of the individual sample compositions for hyperclustered processing
 
+        :param self: An instance of object
         :param figsize: tuple of size 2 with figure size information
+        :param filenames: A list of file names to plot to 
         """
 
         assert self.deconvolution.dataset.is_hyperclustered

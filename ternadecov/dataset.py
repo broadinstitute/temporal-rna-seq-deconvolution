@@ -1,19 +1,12 @@
 """Objects representing datasets"""
 
-
 import sys
 import numpy as np
 import torch
 from typing import List, Dict
 import anndata
 import colorcet as cc
-
-# if "boltons" in sys.modules:
 from boltons.cacheutils import cachedproperty as cached_property
-
-# else:
-#    from functools import cached_property
-
 from ternadecov.parametrization import (
     DeconvolutionDatatypeParametrization,
     DeconvolutionDatasetParametrization,
@@ -23,7 +16,7 @@ from ternadecov.hypercluster import hypercluster_anndata
 
 
 class SingleCellDataset:
-    """A reduced dataset with only single-cell data for use with simulator"""
+    """A reduced dataset with only single-cell data for use with the simulator."""
 
     def __init__(
         self,
@@ -33,6 +26,16 @@ class SingleCellDataset:
         dtype: torch.dtype,
         device: torch.device,
     ):
+        """
+            Object initializer
+        
+            :param self: An instance of object
+            :param sc_anndata: AnnData object holding the single-cell information
+            :param sc_celltype_col: Column in .obs for sc_anndata denoting the annotated cell type
+            :param dtype_np: numpy dtype to use
+            :param dtype: torch dtype to use
+            :param device: torch device to use
+        """
         self.num_genes = sc_anndata.n_vars
         self.num_cells = sc_anndata.n_obs
         self.sc_celltype_col = sc_celltype_col
@@ -43,8 +46,11 @@ class SingleCellDataset:
 
     @cached_property
     def cell_type_str_list(self) -> List[str]:
-        # return sorted(list(set(self.sc_anndata.obs[self.sc_celltype_col])))
-        # Nan safe version
+        """
+            Return a list of stings of celltypes
+            
+            :param self: An instance of object
+        """
         return sorted(
             list(
                 x
@@ -55,7 +61,11 @@ class SingleCellDataset:
 
     @cached_property
     def w_hat_gc(self) -> np.ndarray:
-        """Calculate the estimate cell profiles"""
+        """
+            Calculate the estimate cell profiles
+        
+            :param self: An instance of object
+        """
         w_hat_gc = np.zeros((self.num_genes, self.num_cell_types))
         for cell_type_str in self.cell_type_str_list:
             i_cell_type = self.cell_type_str_to_index_map[cell_type_str]
@@ -68,10 +78,23 @@ class SingleCellDataset:
 
     @cached_property
     def num_cell_types(self) -> int:
+        """
+            Get number of cell types
+            
+            :param self: An instance of object
+            :return: Number of cell types
+        """
         return len(self.cell_type_str_list)
 
     @cached_property
     def cell_type_str_to_index_map(self) -> Dict[str, int]:
+        """
+            Get dictionary of celltypes to index in array
+            
+            :param self: An instance of object
+            :return: Dictionary from celltype string to integer index
+        """
+
         return {
             cell_type_str: index
             for index, cell_type_str in enumerate(self.cell_type_str_list)
@@ -86,6 +109,13 @@ class DeconvolutionDataset:
         types: DeconvolutionDatatypeParametrization,
         parametrization: DeconvolutionDatasetParametrization,
     ):
+        """
+            Class representing a deconvolution dataset
+            
+            :param self: An instance of object
+            :param types: An instance of DeconvolutionDatatypeParametrization providing datatypes to use
+            :param parametrization: An instance of DeconvolutionDatasetParametrization providing the configuration to use
+        """
 
         self.sc_celltype_col = parametrization.sc_celltype_col
         self.bulk_time_col = parametrization.bulk_time_col
@@ -165,11 +195,13 @@ class DeconvolutionDataset:
                 for i in range(len(self.cell_type_str_list))
             }
 
-    # TODO: cache this method
-    @property
+    @cached_property
     def cell_type_str_list(self) -> List[str]:
-        # return sorted(list(set(self.sc_anndata.obs[self.sc_celltype_col])))
-        # Nan safe version
+        """
+            Return a list of stings of celltypes
+            
+            :param self: An instance of object
+        """
         return sorted(
             list(
                 x
@@ -178,24 +210,47 @@ class DeconvolutionDataset:
             )
         )
 
-    @property
+    @cached_property
     def cell_type_str_to_index_map(self) -> Dict[str, int]:
+        """
+            Get dictionary of celltypes to index in array
+            
+            :param self: An instance of object
+            :return: Dictionary from celltype string to integer index
+        """
         return {
             cell_type_str: index
             for index, cell_type_str in enumerate(self.cell_type_str_list)
         }
 
-    @property
+    @cached_property
     def num_cell_types(self) -> int:
+        """
+            Get number of cell types
+            
+            :param self: An instance of object
+            :return: Number of cell types
+        """
         return len(self.cell_type_str_list)
 
-    @property
+    @cached_property
     def num_samples(self) -> int:
+        """
+            Get number of bulk samples in the dataset
+            
+            :param self: An instance of object
+            :return: Number of samples
+        """
         return self.bulk_anndata.X.shape[0]
 
-    @property
+    @cached_property
     def w_hat_gc(self) -> np.ndarray:
-        """Calculate the estimate cell profiles"""
+        """
+            Calculate and return the estimate cell profiles
+        
+            :param self: An instance of object
+            :return: Array of dimention gene x celltype
+        """
         w_hat_gc = np.zeros((self.num_genes, self.num_cell_types))
         for cell_type_str in self.cell_type_str_list:
             i_cell_type = self.cell_type_str_to_index_map[cell_type_str]
@@ -212,8 +267,21 @@ class DeconvolutionDataset:
 
     @property
     def t_m(self) -> torch.tensor:
+        """
+            Get the times of the individual points
+            
+            :param self: An instance of object
+            :return: Tensor of times
+        """
         return torch.tensor(self.dpi_time_m, device=self.device, dtype=self.dtype)
 
     @property
     def bulk_sample_names(self) -> List[str]:
+        """
+            Get the names of the bulk samples
+            
+            :param self: An instance of object
+            :return: List of string names of bulk samples
+        """
+
         return list(self.bulk_anndata.obs.index)

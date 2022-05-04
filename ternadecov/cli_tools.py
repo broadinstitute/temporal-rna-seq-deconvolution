@@ -3,7 +3,6 @@
 import torch
 import numpy as np
 import anndata
-
 from ternadecov.time_deconv import TimeRegularizedDeconvolutionModel
 from ternadecov.dataset import DeconvolutionDataset
 from ternadecov.parametrization import (
@@ -12,16 +11,19 @@ from ternadecov.parametrization import (
     TimeRegularizedDeconvolutionModelParametrization,
     TimeRegularizedDeconvolutionGPParametrization,
 )
-
 from ternadecov.deconvolution_exporter import DeconvolutionExporter
 
 
 def get_torch_device(args):
-    # Check for cuda device
-    if args.cuda and torch.cuda.is_available():
-        device = torch.device("cuda:0")
-        if args.verbose:
-            print("Using CUDA")
+    """Get the torch device based on availability and cli params"""
+    if args.cuda:
+        if torch.cuda.is_available():
+            device = torch.device("cuda:0")
+            if args.verbose:
+                print("Using CUDA")
+        else:
+            # quietly use cpu
+            device = torch.device("cpu:0")
     else:
         device = torch.device("cpu:0")
 
@@ -29,7 +31,10 @@ def get_torch_device(args):
 
 
 def do_deconvolution(args):
-    """Main function that processes and executes deconvolution sub-command"""
+    """Main function that processes and executes deconvolution sub-command
+    
+    :param args: parsed cli params
+    """
 
     device = get_torch_device(args)
 
