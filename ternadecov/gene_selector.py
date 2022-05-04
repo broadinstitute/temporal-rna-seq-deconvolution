@@ -1,3 +1,6 @@
+"""Algorithms for selecting genes for the deconvolution"""
+
+
 import numpy as np
 import anndata
 from sklearn.linear_model import Ridge

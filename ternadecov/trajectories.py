@@ -1,4 +1,6 @@
-"""Trajectories of cell proportions"""
+"""Alternative trajectories of cell proportions"""
+
+
 import numpy as np
 import torch
 import pyro

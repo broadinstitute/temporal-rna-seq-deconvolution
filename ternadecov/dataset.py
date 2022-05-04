@@ -1,3 +1,6 @@
+"""Objects representing datasets"""
+
+
 import sys
 import numpy as np
 import torch
@@ -5,9 +8,10 @@ from typing import List, Dict
 import anndata
 import colorcet as cc
 
-#if "boltons" in sys.modules:
+# if "boltons" in sys.modules:
 from boltons.cacheutils import cachedproperty as cached_property
-#else:
+
+# else:
 #    from functools import cached_property
 
 from ternadecov.parametrization import (

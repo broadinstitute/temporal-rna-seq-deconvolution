@@ -1,3 +1,6 @@
+"""Deconvolution plotter for plotting figures from deconvolution"""
+
+
 import matplotlib
 import matplotlib.pyplot
 import torch

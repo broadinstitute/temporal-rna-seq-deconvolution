@@ -1,3 +1,6 @@
+"""Deconvolution exporter object for automated export"""
+
+
 from ternadecov.deconvolution_plotter import DeconvolutionPlotter
 from ternadecov.deconvolution_writer import DeconvolutionWriter
 from ternadecov.time_deconv import TimeRegularizedDeconvolutionModel

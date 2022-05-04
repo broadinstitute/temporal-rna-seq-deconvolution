@@ -1,3 +1,6 @@
+"""Deconvolution writter for writting output tables"""
+
+
 from ternadecov.time_deconv import TimeRegularizedDeconvolutionModel
 from ternadecov.utils import melt_tensor_to_pandas
 import torch

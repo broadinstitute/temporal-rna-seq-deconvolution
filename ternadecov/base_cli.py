@@ -1,4 +1,4 @@
-"""Commandline functionality"""
+"""Command-line functionality"""
 
 import argparse
 
@@ -6,7 +6,11 @@ import ternadecov.cli_tools as cli
 
 
 def get_argument_parser() -> argparse.ArgumentParser:
-    """Return a prepared ArgumentParser"""
+    """Return a prepared ArgumentParser.
+    
+    :return: ArgumentParser
+    :rtype: argparse.ArgumentParser
+    """
     parser = argparse.ArgumentParser(
         prog="ternadecov",
         description="ternadecov is a software package for deconvolution "

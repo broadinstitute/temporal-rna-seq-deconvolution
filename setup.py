@@ -10,7 +10,7 @@ def readme():
 
 
 def get_requirements_filename():
-        return "REQUIREMENTS.txt"
+    return "REQUIREMENTS.txt"
 
 
 install_requires = [

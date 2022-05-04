@@ -1,3 +1,6 @@
+"""Simulator for bulk datasets"""
+
+
 import matplotlib
 import matplotlib.pyplot
 import torch

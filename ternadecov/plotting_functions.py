@@ -1,3 +1,6 @@
+"""Stand-alone plotting fuctions, called from DeconvolutionPlotter"""
+
+
 from scipy.signal import savgol_filter
 from typing import Optional, Tuple, Dict
 from ternadecov.time_deconv import TimeRegularizedDeconvolutionModel

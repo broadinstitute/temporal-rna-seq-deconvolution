@@ -1,3 +1,6 @@
+"""Parametrization objects holding for parametrizing datasets and deconvolution execution"""
+
+
 import torch
 import numpy as np
 from typing import Dict, Optional

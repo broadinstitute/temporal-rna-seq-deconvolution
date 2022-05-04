@@ -1,3 +1,6 @@
+"""Statistics helper functions"""
+
+
 import functools
 import pyro.distributions as dist
 import torch

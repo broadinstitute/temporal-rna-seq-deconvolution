@@ -1,3 +1,6 @@
+"""Main deconvolution functionality"""
+
+
 import torch
 import pyro
 from pyro.infer import SVI, Trace_ELBO

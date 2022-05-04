@@ -1,3 +1,6 @@
+"""Methods for hyper-clustering single-cells prior to deconvolution"""
+
+
 from collections import Counter
 import scanpy as sc
 import pandas as pd
