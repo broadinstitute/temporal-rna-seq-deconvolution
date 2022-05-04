@@ -33,7 +33,11 @@ def evaluate_with_trajectory(
     :param n_samples: number of samples along the time axis to generate
     :param trajectory_type: string indicating the trajectory type to which the `trajectory_coef` correspond
     :param trajectory_coef: trajectory coefficients
-
+    :param types: DeconvolutionDatatypeParametrization identifying datatypes to use
+    :param deconvolution_params: Dictionary with deconvolution parameters
+    :param n_iters: Number of learning iterations for each execution
+    
+    :return: Dictionary with results
     """
 
     # Simulate bulk data
@@ -85,7 +89,13 @@ def evaluate_with_trajectory(
 def evaluate_model(
     params: dict, reference_deconvolution: TimeRegularizedDeconvolutionModel
 ):
-    # TODO: Update to work with different proportion types
+    """Perform model evaluation by simulating, deconvolving and calculating errors
+    
+    :param params: Dictionary of parameters to pass to different functions
+    :param reference_deconvolution: A reference deconvolution
+    
+    :return: Prediction error as calculated from calculate_prediction_error()
+    """
 
     sim_res = simulate_with_sigmoid_proportions(
         **params["simulation_params"], reference_deconvolution=reference_deconvolution
@@ -113,6 +123,12 @@ def evaluate_model(
 
 
 def get_default_evaluation_param(device, dtype, dtype_np):
+    """ Get default parametrization for algorithm parametrization
+    
+    :param device: torch device 
+    ;param dtype: torch datatype
+    :param dtype_np: numpy datatype
+    """
     default_param = {
         "simulation_params": {"num_samples": 100,},
         "deconvolution_dataset_params": {
@@ -139,6 +155,16 @@ def get_default_evaluation_param(device, dtype, dtype_np):
 def evaluate_paramset(
     param_set, sc_anndata, reference_deconvolution, show_progress=True
 ):
+    """Evaluate parameter set.
+    
+    :param param_set: Parameter set for evaluation
+    :param sc_anndata: single-cell AnnData object
+    :param reference_deconvolution: A reference deconvolution (required for auxiliary data)
+    :param show_progress: Boolean to show progress
+    
+    :return: list of results
+    """
+
     if show_progress:
         progress_bar = tqdm.tqdm
     else:
@@ -159,9 +185,12 @@ def evaluate_paramset(
 
 def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=1000):
     """Calculate the prediction error of a deconvolution on simulated results
+    
     :param sim_res: results of a simulation
     :param pseudo_time_reg_deconv_sim: the deconvolution object to evaluate
     :n_intervals: number of intervals over which to evaluate the results
+    
+    :return: dictionary of different errors
     """
 
     # TODO: Move to sim_res
@@ -243,16 +272,9 @@ def calculate_prediction_error(sim_res, pseudo_time_reg_deconv_sim, n_intervals=
         predicted_composition_cm / predicted_composition_cm.sum(-2)
     )
 
-    shape_L1_error = (
-        (ground_truth_proportions_norm_cm - predicted_composition_norm_cm)
-        .abs()
-        .sum([0, 1])
-    )
-
     return {
         "L1_error": L1_error,
         "L1_error_norm": L1_error_norm,
         "L2_error": L2_error,
         "L2_error_norm": L2_error_norm,
-        "shape_L1_error": shape_L1_error,
     }

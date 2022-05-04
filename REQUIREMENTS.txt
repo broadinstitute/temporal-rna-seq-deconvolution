@@ -6,6 +6,7 @@ scanpy
 boltons
 anndata
 sklearn
+tqdm
 colorcet>=3.0.0
 pyro-api==0.1.2
 pyro-ppl==1.8.0

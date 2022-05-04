@@ -1,6 +1,5 @@
 """Stand-alone plotting fuctions, called from DeconvolutionPlotter"""
 
-
 from scipy.signal import savgol_filter
 from typing import Optional, Tuple, Dict
 from ternadecov.time_deconv import TimeRegularizedDeconvolutionModel
@@ -18,6 +17,16 @@ def generate_posterior_samples(
     n_bins: int = 1000,
     n_samples_per_bin: int = 10000,
 ):
+    """Generate samples from the posterior of a gp
+    
+    :param deconvolution: deconvolution model to get posterior samples from
+    :param t_begin: start time
+    :param t_end: end time
+    :param n_bins: number of bins
+    :param n_samples_per_bin: number of samples per bin
+    
+    :return: 
+    """
 
     with torch.no_grad():
         traj = deconvolution.population_proportion_model
@@ -44,6 +53,16 @@ def get_iqr_from_posterior_samples(
     n_windows: int = 10,
     savgol_polyorder: int = 1,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+
+    """Calculate IQR range from posterior samples
+    
+    :param pi_sampled_scn: Sampled tensor
+    :param perform_smoothing: Flag for performing smoothing
+    :param n_windows: Number of windows to smooth 
+    :param savgol_polyorder: Polynomial degree for smoothing
+    
+    :return: tumple of arrays for (0.25, 0.50, 0.75) quantiles
+    """
 
     assert pi_sampled_scn.ndim == 3
     n_samples_per_bin, n_cell_types, n_bins = pi_sampled_scn.shape
@@ -86,6 +105,14 @@ def summarize_posterior_samples(
     pi_sampled_scn: torch.Tensor,
     celltype_summarization: Dict[str, List[str]],
 ) -> torch.Tensor:
+    """Summarize posterior samples by celltype summarization
+    
+    :param deconvolution: deconvolution object
+    :param pi_sampled_scn: Posterior samples to summarize
+    :param celltype_summarization: Celltype summarization dictionary
+    
+    :return: Tensor of summarized posterior samples
+    """
 
     # get base cell type labels
     celltype_labels = deconvolution.dataset.cell_type_str_list

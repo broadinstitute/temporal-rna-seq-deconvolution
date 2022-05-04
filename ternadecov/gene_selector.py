@@ -12,6 +12,8 @@ import logging
 
 
 class GeneSelector:
+    """Class of static methods for selecting features (genes)"""
+
     @staticmethod
     def select_features(
         bulk_anndata: anndata.AnnData,

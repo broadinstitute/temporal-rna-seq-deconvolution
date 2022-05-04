@@ -1,12 +1,18 @@
 """Methods for hyper-clustering single-cells prior to deconvolution"""
 
-
 from collections import Counter
 import scanpy as sc
 import pandas as pd
 
 
 def preproc_anndata_hypercluster(anndata_obj):
+    """Preproces anndata object for hyperclustering
+    
+    :param anndata_obj: AnnData object
+    
+    :return: ann_data_working
+    """
+
     # Make object copy
     ann_data_working = anndata_obj.copy()
 
