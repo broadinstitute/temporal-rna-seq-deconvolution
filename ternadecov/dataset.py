@@ -5,10 +5,10 @@ from typing import List, Dict
 import anndata
 import colorcet as cc
 
-if "boltons" in sys.modules:
-    from boltons.cacheutils import cachedproperty as cached_property
-else:
-    from functools import cached_property
+#if "boltons" in sys.modules:
+from boltons.cacheutils import cachedproperty as cached_property
+#else:
+#    from functools import cached_property
 
 from ternadecov.parametrization import (
     DeconvolutionDatatypeParametrization,
