@@ -12,7 +12,6 @@ from pyro.nn.module import PyroParam, pyro_method
 from pyro.contrib.gp.parameterized import Parameterized
 from abc import abstractmethod
 from typing import Dict
-
 from ternadecov.parametrization import TimeRegularizedDeconvolutionGPParametrization
 from ternadecov.stats_helpers import legendre_coefficient_mat
 
@@ -21,6 +20,7 @@ class TrajectoryModule:
     """The base class of all trajectory modules."""
 
     def __init__(self):
+        """Initializer of Trajectory module"""
         super(TrajectoryModule, self).__init__()
 
     @abstractmethod
@@ -35,6 +35,8 @@ class TrajectoryModule:
 
 
 class ParameterizedTrajectoryModule(TrajectoryModule, Parameterized):
+    """Abstract base class for a parametrized trajectory module"""
+
     pass
 
 
@@ -46,6 +48,17 @@ class NonTrajectoryModule(TrajectoryModule):
         device: torch.device,
         dtype: torch.dtype,
     ):
+        """Initializer for NonTrajectoryModule
+        
+        The non trajectory module is a module that takes the role of trajectory module, but does not impose a structure on the proportions based on time
+        
+        :param self: instance of class
+        :param num_cell_types: number of cell types
+        :param num_samples: number of samples
+        :param device: torch device to use
+        :param dtype: torch dtype 
+        
+        """
         self.device = device
         self.dtype = dtype
         self.num_cell_types = num_cell_types
@@ -66,6 +79,12 @@ class NonTrajectoryModule(TrajectoryModule):
         )
 
     def model(self, xi_mq: torch.Tensor) -> torch.Tensor:
+        """Main model
+        
+        :param self: instance of class
+        :param xi_mq: covariate tensor with shape (num_sample, covariate_n_dim)
+        
+        """
 
         unnorm_cell_pop_loc_prior_mc = pyro.param(
             "unnorm_cell_pop_loc_prior_mc",
@@ -91,12 +110,19 @@ class NonTrajectoryModule(TrajectoryModule):
         )
 
         norm_cell_pop_mc = torch.nn.functional.softmax(unnorm_cell_pop_mc, dim=-1)
-
         assert norm_cell_pop_mc.shape == (self.num_samples, self.num_cell_types,)
 
         return norm_cell_pop_mc
 
     def guide(self, xi_mq: torch.Tensor) -> torch.Tensor:
+        """Main guide
+        
+        :param self: instance of class
+        :param xi_mq: covariate tensor with shape (num_sample, covariate_n_dim)
+        
+        :return: posterior draw
+        
+        """
 
         unnorm_cell_pop_loc_posterior_mc = pyro.param(
             "unnorm_cell_pop_loc_posterior_mc",
@@ -132,6 +158,8 @@ class NonTrajectoryModule(TrajectoryModule):
 
 
 class BasicTrajectoryModule(TrajectoryModule):
+    """Basic trajectory module representing a trajectory derived from a parametric form of polynomials or other basis functions"""
+
     def __init__(
         self,
         basis_functions: str,
@@ -142,6 +170,19 @@ class BasicTrajectoryModule(TrajectoryModule):
         device: torch.device,
         dtype: torch.dtype,
     ):
+        """Initializer for BasicTrajectoryModule
+        
+        :param self: instance of class
+        :param basis_functions: basis functions ('polynomial', 'legendre')
+        :param polynomial_degree: degree of polynomial to use
+        :param num_cell_types: number of celltypes
+        :param num_samples: number of samples
+        :param init_posterior_global_scale_factor: posterior gloval scale factor
+        :param device: torch device to use
+        :param dtype: torch dtype to use
+        
+        """
+
         self.device = device
         self.dtype = dtype
         self.polynomial_degree = polynomial_degree
@@ -191,6 +232,12 @@ class BasicTrajectoryModule(TrajectoryModule):
         )
 
     def model(self, xi_mq: torch.Tensor) -> torch.Tensor:
+        """
+        :param self: instance of object
+        :param xi_mq: covariate tensor with shape (num_sample, covariate_n_dim)
+        
+        :return: cell population proportions
+        """
 
         t_m = xi_mq[:, 0]
 
@@ -300,6 +347,13 @@ class BasicTrajectoryModule(TrajectoryModule):
         return cell_pop_mc
 
     def guide(self, xi_mq: torch.Tensor) -> torch.Tensor:
+        """ Main guide
+        
+            :param self: instance of object
+            :param xi_mq: covariate tensor with shape (num_sample, covariate_n_dim)
+        
+            :return: posterior cell population proportions
+        """
         # variational parameters for unnorm_cell_pop_base_c ("B_c")
         unnorm_cell_pop_base_posterior_loc_c = pyro.param(
             "unnorm_cell_pop_base_posterior_loc_c",
@@ -345,7 +399,12 @@ class BasicTrajectoryModule(TrajectoryModule):
         return cell_pop_mc
 
     def get_composition_trajectories(self, dataset, n_intervals=1000):
-        """Calculate the composition trajectories"""
+        """Calculate the composition trajectories
+        
+        :param self: instance of object
+        :param dataset: dataset for getting times and celltype labels
+        :param n_intervals: number of points to evaluate the trajectories at
+        """
         # calculate true times
         if self.basis_functions == "polynomial":
             time_step = 1 / n_intervals
@@ -404,6 +463,7 @@ class BasicTrajectoryModule(TrajectoryModule):
 
         norm_comp_ct_torch = torch.Tensor(norm_comp_tc).T
         summarized_composition_rt = None
+
         toplevel_cell_map = None
         if dataset.is_hyperclustered:
             cluster_map = dataset.hypercluster_results["cluster_map"]
@@ -434,6 +494,8 @@ class BasicTrajectoryModule(TrajectoryModule):
 
 
 class VGPTrajectoryModule(ParameterizedTrajectoryModule):
+    """Trajectory module for gaussian process trajectories"""
+
     def __init__(
         self,
         xi_mq: torch.Tensor,
@@ -443,9 +505,15 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
         dtype: torch.dtype,
         parametrization: TimeRegularizedDeconvolutionGPParametrization = TimeRegularizedDeconvolutionGPParametrization(),
     ):
-        """TBW.
+        """Initializer for VGPTrajectoryModule
 
         :param xi_mq: covariate tensor with shape (num_sample, covariate_n_dim)
+        :param num_cell_types: number of celltypes
+        :param init_posterior_global_scale_factor: posterior global scale factor
+        :param device: torch device
+        :param dtype: torch dtype
+        :param parametrization: instance of TimeRegularizedDeconvolutionGPParametrization
+        
 
         .. note:: in the current model where the only covairate is time, covariate_n_dim == 1
 
@@ -531,6 +599,14 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
 
     @pyro_method
     def model(self, xi_mq: torch.Tensor) -> torch.Tensor:
+        """Default model
+        
+        :param self: instance of object
+        :param xi_mq: covariate tensor with shape (num_sample, covariate_n_dim)
+        
+        :return: tensor of cell populations
+        
+        """
         self.set_mode("model")
 
         # assert that covariates have the same shape as what given to the initializer
@@ -562,6 +638,14 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
 
     @pyro_method
     def guide(self, xi_mq: torch.Tensor) -> torch.Tensor:
+        """Default guide
+        
+        :param self: instance of object
+        :param xi_mq: covariate tensor with shape (num_sample, covariate_n_dim)
+        
+        :return: tensor of cell populations
+        """
+
         self.set_mode("guide")
 
         # sample the posterior of the inducing points (happens implicitly inside the guide() call of gp)
@@ -576,10 +660,6 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
             "f_posterior_scale_mc", self.gp_init_f_posterior_scale_mc
         )
 
-        # with pyro.plate("batch"):
-        #     f_mc = pyro.sample(
-        #         "f_mc", pyro.distributions.Delta(v=f_posterior_loc_mc).to_event(1)
-        #     )
         with pyro.plate("batch"):
             f_mc = pyro.sample(
                 "f_mc",
@@ -596,7 +676,14 @@ class VGPTrajectoryModule(ParameterizedTrajectoryModule):
         return cell_pop_mc
 
     def get_composition_trajectories(self, dataset, n_intervals=1000) -> Dict:
-        """Get the composition trajectories"""
+        """Get the composition trajectories
+        
+        :param self: instance of object
+        :param dataset: dataset object
+        :param n_intervals: number of itervals to evaluate trajectory at
+        
+        :return: dictionary of composition trajectory information
+        """
         with torch.no_grad():
             xi_new_nq = torch.linspace(
                 0.0, 1.0, 1000, device=self.device, dtype=self.dtype

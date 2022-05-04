@@ -9,7 +9,14 @@ def melt_tensor_to_pandas(
     input_tensor: torch.Tensor, dimnames, *dimlabels
 ) -> pd.DataFrame:
     """Like pandas.melt() but for torch tensors.
-    Creates a long form table with values and their indices"""
+    Creates a long form table with values and their indices
+    
+    :param input_tensor: tensor of arbitrary dimentionality to flatten
+    :param dimnames: dimension names
+    :param \*dimlabels: labels for each dimenstion
+    
+    :return: pandas dataframe with flattened information
+    """
 
     input_tensor_dim = input_tensor.dim()
     input_shape = input_tensor.shape

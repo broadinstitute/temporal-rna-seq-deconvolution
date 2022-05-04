@@ -8,7 +8,7 @@ import pyro
 import anndata
 import numpy as np
 import pandas as pd
-
+from typing import Dict
 from ternadecov.stats_helpers import NegativeBinomialAltParam
 
 
@@ -17,6 +17,8 @@ def generate_anndata_from_sim(sim_res, reference_dataset):
 
     :param sim_res: Simulation results dictonary
     :param reference_deconvolution: Reference deconvolution object
+    
+    :return: AnnData object with simulated data
     """
 
     var_tmp = pd.DataFrame({"gene": list(reference_dataset.sc_anndata.var.index)})
@@ -42,6 +44,8 @@ def plot_simulated_proportions(
     :dataset: 
     :param show_sample_proportions: show the generated proportions plot
     :param show_trajectories: show underlying trajectories plot
+    
+    :return: matplotlib axes
     """
 
     true_trajectories = sim_res["trajectory_params"]["trajectories_cm"]
@@ -231,6 +235,8 @@ def sample_trajectories(type, num_cell_types):
 
     :param type: trajectory type (linear, sigmoid, periodical)
     :param num_cell_types: number of cell types in the trajectory
+    
+    :return simulated trajectories:
     """
     if type == "linear":
         return sample_linear_trajectories(num_cell_types)
@@ -246,8 +252,25 @@ def sample_trajectories(type, num_cell_types):
 
 
 def sample_linear_trajectories(
-    num_cell_types, seed=None, a_min=0, a_max=10, b_min=-10, b_max=10
-):
+    num_cell_types: int,
+    seed: Optional[int] = None,
+    a_min: float = 0.0,
+    a_max: float = 10.0,
+    b_min: float = -10.0,
+    b_max: float = 10.0,
+) -> Dict:
+    """
+    Generate a sample of linear trajectory coefficients
+    
+    :param num_cell_types: number of cell types in trajectories
+    :param seed: Random seed (for reproducibility)
+    :param a_min: minimum value for a coefficient
+    :param a_max: maximum values for a coefficient
+    :param b_min: minimum value for b coefficient
+    :param b_max: maximum value for b coefficient
+    
+    :return: Dictionary coefficient and their values
+    """
     if seed is not None:
         torch.manual_seed(seed)
 
@@ -319,9 +342,28 @@ def sample_linear_proportions(
 
 
 def sample_periodic_trajectories(
-    num_cell_types, seed=None, a_min=-5, a_max=5, b_min=0, b_max=0.75, c_min=0, c_max=5
-):
-    """Get a sample of coefficients for periodic trajectories"""
+    num_cell_types: int,
+    seed: Optional[int] = None,
+    a_min: float = -5.0,
+    a_max: float = 5.0,
+    b_min: float = 0.0,
+    b_max: float = 0.75,
+    c_min: float = 0.0,
+    c_max: float = 5.0,
+) -> Dict:
+    """Get a sample of coefficients for periodic trajectories
+    
+    :param num_cell_types: Number of celltypes
+    :param seed: Seed for reproducibility
+    :param a_min: min value for a
+    :param a_max: max value for a
+    :param b_min: min value for b
+    :param b_max: max value for b
+    :param c_min: min value for c
+    :param c_max: max value for c
+    
+    :return: Dictionary of coefficients
+    """
 
     if seed is not None:
         torch.manual_seed(seed)
@@ -343,12 +385,16 @@ def sample_periodic_proportions(
     trajectory_sample_params=None,
     seed=None,
 ):
-    """Get a sample of periodic cell proportions
+    """Get a sample of periodic cell proportions, optionally from a given trajectory
 
     :param num_cell_types: number of cell types to simulate
     :param num_samples: number of samples to simulate
     :param t_m: time points to simulate results for
     :param dirichlet_alpha: global diriechlet concentration
+    :param trajectory_coefficients: trajectory, if not provided a random trajectory is drawn
+    :param trajectory_sample_params: optional parameter dictionary for sampling trajectories
+    :param seed: optional seed for drawing coefficients
+    
     """
     if trajectory_coefficients is None:
         trajectory_coefficients = sample_periodic_trajectories(
@@ -477,10 +523,15 @@ def sample_sigmoid_proportions(
     }
 
 
-######################################################
-# Error Calculation
-######################################################
-def calculate_sample_prediction_error(sim_res, pseudo_time_reg_deconv_sim):
+def calculate_sample_prediction_error(sim_res, pseudo_time_reg_deconv_sim) -> Dict:
+    """Calculate the error at the level of individual sample proportion prediction
+    
+    :param sim_res: Simulation results to use as base truth
+    :param pseudo_time_reg_deconv_sim: The trained object to simulate
+    
+    :return: Dictionary of errors
+    """
+
     # Ground Truth
     ground_truth_cell_pop_cm = sim_res["cell_pop_cm"]
     estimated_cell_pop_cm = (
@@ -501,6 +552,8 @@ def calculate_trajectory_prediction_error(
     :param sim_res: results of a simulation
     :param pseudo_time_reg_deconv_sim: the deconvolution object to evaluate
     :n_intervals: number of intervals over which to evaluate the results
+    
+    :return: Dictionary of results
     """
 
     # TODO: Move to sim_res

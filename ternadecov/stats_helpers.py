@@ -1,6 +1,5 @@
 """Statistics helper functions"""
 
-
 import functools
 import pyro.distributions as dist
 import torch
@@ -14,6 +13,8 @@ def legendre_coefficient_mat(k_max, dtype, epsilon=1e-8):
 
     :param k_max: legenre polynomial max degree
     :param epsilon: minimum coefficient value
+    
+    :return: torch tensor with legendre coefficients
     """
 
     k_max_internal = k_max + 1
@@ -27,11 +28,11 @@ def legendre_coefficient_mat(k_max, dtype, epsilon=1e-8):
 
 
 def NegativeBinomialAltParam(mu, phi):
-    """
-    Creates a negative binomial distribution.
+    """Creates a negative binomial distribution.
 
-    Args:
-        mu (Number, Tensor): mean (must be strictly positive)
-        phi (Number, Tensor): overdispersion (must be strictly positive)
+    :param mu: mean (must be strictly positive)
+    :param phi: overdispersion (must be strictly positive)
+        
+    :return: pyro distribution
     """
     return dist.GammaPoisson(concentration=1 / phi, rate=1 / (mu * phi))

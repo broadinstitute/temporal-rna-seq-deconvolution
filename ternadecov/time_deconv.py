@@ -9,7 +9,6 @@ import math
 import pandas as pd
 import time
 import logging
-
 from ternadecov.dataset import DeconvolutionDataset
 from ternadecov.parametrization import (
     DeconvolutionDatatypeParametrization,
@@ -32,6 +31,12 @@ from ternadecov.stats_helpers import NegativeBinomialAltParam
 def generate_batch(
     dataset: DeconvolutionDataset, device: torch.device, dtype: torch.dtype
 ):
+    """Generate a full training batch
+    
+    :param dataset: DeconvolutionDataset
+    :param device: torch device
+    :param dtype: torch dataset
+    """
 
     return {
         "x_mg": dataset.bulk_raw_gex_mg.clone().detach().to(device).type(dtype),
@@ -43,6 +48,8 @@ _TRAJECTORY_MODEL_TYPES = {"polynomial", "gp", "nontrajectory"}
 
 
 class TimeRegularizedDeconvolutionModel:
+    """Main deconvolution class"""
+
     def __init__(
         self,
         dataset: DeconvolutionDataset,
@@ -53,6 +60,25 @@ class TimeRegularizedDeconvolutionModel:
         trajectory_hyperparameters=None,
         **kwargs,
     ):
+        """Initializer for TimeRegularizedDeconvolutionModel
+        
+        :param self:
+        :param dataset:
+        :param types:
+        :param use_betas:
+        :param trajectory_model_type:
+        :param hyperparameters:
+        :param trajectory_hyperparameters:
+            See below
+
+        :Keyword Arguments:
+            * basis_functions (``str``)--
+              set of basis functions
+            * polynomial_degree (``int``)--
+                polynomial degree for legendre and regular polynomials
+            
+        """
+
         if hyperparameters is None:
             logging.warning("Model parametrization not provided, using default")
             hyperparameters = TimeRegularizedDeconvolutionModelParametrization()
@@ -128,6 +154,7 @@ class TimeRegularizedDeconvolutionModel:
     ):
         """Main model
 
+        :param self: instance of Object
         :param x_mg: gene expression
         :param t_m: obseration time
         """
@@ -195,7 +222,14 @@ class TimeRegularizedDeconvolutionModel:
             )
 
     def guide(self, x_mg: torch.Tensor, t_m: torch.Tensor):
-        """Simple delta guide"""
+        """Main guide
+        
+        :param self: instance of object
+        :param x_mg: expression matrix
+        :param t_m: times
+        
+        :return: posterior draw
+        """
 
         # variational parameters for log_phi_g
         log_phi_posterior_loc_g = pyro.param(
@@ -244,10 +278,19 @@ class TimeRegularizedDeconvolutionModel:
         clear_param_store=True,
         keep_param_store_history=True,
     ):
+        """Iteratively fit the mode
+        
+        :param self: instance of object
+        :param n_inters: number of iterations to execute
+        :param log_frequency: log frequncy (in iterations)
+        :param verbose: verbosity flat
+        :param clear_param_store: flag to clear parameter store before starting iterations
+        :param keep_param_store_history: flag to keep full parameter store copies during learning (warning: high memory consumption)
+        
+        """
         if clear_param_store:
             pyro.clear_param_store()
 
-        # TODO: bring these out
         optim = pyro.optim.Adam({"lr": 1e-3})
 
         self.loss_hist = []
@@ -279,7 +322,11 @@ class TimeRegularizedDeconvolutionModel:
                     )
 
     def sample_composition_default(self):
-        """Return the sample composition in a pandas DataFrame"""
+        """Return the sample composition in a pandas DataFrame
+        
+        :param self: instance of object
+        :return: return the current sample composition in pandas dataframe format
+        """
 
         cell_pop_mc = pyro.param("cell_pop_posterior_loc_mc").clone().detach().cpu()
         col_sample = []
@@ -299,7 +346,12 @@ class TimeRegularizedDeconvolutionModel:
         )
 
     def write_sample_compositions(self, csv_filename, ignore_hypercluster=False):
-        """Write sample composition to csv file"""
+        """Write sample composition to csv file
+        
+        :param self: instance of object
+        :param csv_filename: filename to save the results to
+        :param ignore_hypercluster: Flag to ignore hyperclustering if present
+        """
 
         if self.dataset.is_hyperclustered and not ignore_hypercluster:
             raise NotImplementedError
@@ -309,6 +361,7 @@ class TimeRegularizedDeconvolutionModel:
     def write_sample_composition_default(self, csv_filename):
         """Write sample composition proportions to csv file
 
+        :param self: instance of object
         :param csv_filename: filename of csv file to write to
         """
 
