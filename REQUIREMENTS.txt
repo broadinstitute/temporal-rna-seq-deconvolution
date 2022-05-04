@@ -3,7 +3,7 @@ torch
 numpy
 matplotlib
 scanpy
-functools
+boltons
 anndata
 sklearn
 colorcet>=3.0.0
