@@ -8,23 +8,25 @@ import pyro
 import anndata
 import numpy as np
 import pandas as pd
-from typing import Dict
+from typing import Dict, Optional
 from ternadecov.stats_helpers import NegativeBinomialAltParam
+from ternadecov.dataset import SingleCellDataset
+from anndata import AnnData
 
 
-def generate_anndata_from_sim(sim_res, reference_dataset):
-    """Generate AnnData object from the simulation results
+def generate_anndata_from_sim(sim_res: Dict, sc_dataset: SingleCellDataset) -> AnnData:
+    """Generate AnnData object from the simulation results 
 
     :param sim_res: Simulation results dictonary
-    :param reference_deconvolution: Reference deconvolution object
+    :param sc_dataset: A single-cell dataset object (for the gene names)
     
     :return: AnnData object with simulated data
     """
 
-    var_tmp = pd.DataFrame({"gene": list(reference_dataset.sc_anndata.var.index)})
+    var_tmp = pd.DataFrame({"gene": list(sc_dataset.sc_anndata.var.index)})
     var_tmp = var_tmp.set_index("gene")
 
-    return anndata.AnnData(
+    return AnnData(
         X=sim_res["x_ng"].numpy(),
         var=var_tmp,
         obs=pd.DataFrame({"time": sim_res["t_m"]}),
@@ -49,6 +51,7 @@ def plot_simulated_proportions(
     """
 
     true_trajectories = sim_res["trajectory_params"]["trajectories_cm"]
+    trajectory_type = sim_res["trajectory_params"]["type"]
 
     # Order the time axis
     o = torch.argsort(sim_res["t_m"])
@@ -58,33 +61,49 @@ def plot_simulated_proportions(
     )
 
     if show_trajectories:
-        if sim_res["trajectory_params"]["type"] == "linear":
-            n_samples = 1000
+        # Get time range and initialize tensor
+        n_samples = 1000
+        t_min = torch.min(sim_res["t_m"]).item()
+        t_max = torch.max(sim_res["t_m"]).item()
+        t_m = np.linspace(t_min, t_max, n_samples)
+        trajectories_cm = torch.zeros(dataset.num_cell_types, n_samples)
 
-            t_min = torch.min(sim_res["t_m"]).item()
-            t_max = torch.max(sim_res["t_m"]).item()
-
-            t_m = np.linspace(t_min, t_max, n_samples)
-            trajectories_cm = torch.zeros(dataset.num_cell_types, n_samples)
-
+        if trajectory_type == "linear":
             a = sim_res["trajectory_params"]["a"]
             b = sim_res["trajectory_params"]["b"]
-
             for i in range(dataset.num_cell_types):
                 trajectories_cm[i, :] = torch.Tensor(list(a[i] * x + b[i] for x in t_m))
             # Normalize trajectories_cm
             trajectories_cm = torch.nn.functional.softmax(trajectories_cm, dim=0)
-
-            ax[0].plot(
-                t_m, trajectories_cm.T,
-            )
-            ax[0].legend(dataset.cell_type_str_list)
-            ax[0].set_title("True simulated trajectories")
-            ax[0].set_xlabel("Set time")
-            ax[0].set_ylabel("Proportions")
-
+        elif trajectory_type == "sigmoid":
+            effect_size = sim_res["trajectory_params"]["effect_size"]
+            shift = sim_res["trajectory_params"]["shift"]
+            for i in range(dataset.num_cell_types):
+                trajectories_cm[i, :] = torch.Tensor(
+                    list(sigmoid(effect_size[i] * x + shift[i]) for x in t_m)
+                )
+        elif trajectory_type == "periodic":
+            a = sim_res["trajectory_params"]["a"]
+            b = sim_res["trajectory_params"]["b"]
+            c = sim_res["trajectory_params"]["c"]
+            for i in range(dataset.num_cell_types):
+                trajectories_cm[i, :] = torch.Tensor(
+                    list(a[i] * torch.sin(b[i] * x + c[i]) for x in t_m)
+                )
         else:
-            raise NotImplementedError
+            raise ValueError(f"Unknown trajectory type {trajectory_type}")
+
+        # Normalize trajectories_cm
+        trajectories_cm = torch.nn.functional.softmax(trajectories_cm, dim=0)
+
+        # Do plotting
+        ax[0].plot(
+            t_m, trajectories_cm.T,
+        )
+        ax[0].legend(dataset.cell_type_str_list)
+        ax[0].set_title("True simulated trajectories")
+        ax[0].set_xlabel("Set time")
+        ax[0].set_ylabel("Proportions")
 
     if show_sample_proportions:
         for i in range(sim_res["cell_pop_cm"].shape[0]):
@@ -207,15 +226,6 @@ def simulate_data(
         mean=torch.full([num_samples], lib_size_mean),
         std=torch.full([num_samples], lib_size_std),
     )
-
-    # Get the NegBinomial means
-    # consider: random component on w_gc?
-    # b_gc -> gene + celltype specific distortion ( how does inference degrade as this increases )
-    # sample b_gc from laplace (mu = 1, beta(scale) = )
-    # Gamma(mean = 1, var = 1/rate)
-    # rate = concentration = a
-    # 1/a = var of gamma distribution
-    # sample beta_cg
 
     mu_mg = lib_sizes_m[:, None] * torch.matmul(cell_pop_cm.T, w_gc.transpose(-1, -2))
 
