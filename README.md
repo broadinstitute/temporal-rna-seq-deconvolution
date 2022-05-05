@@ -13,3 +13,6 @@ Install python package
 ```py
 pip install -e .
 ```
+
+## Tutorial
+For a full tutorial on the use of ternadecov please visit the (GP deconvolution tutorial)[https://github.com/broadinstitute/temporal-rna-seq-deconvolution/blob/main/notebooks/tutorials/tutorial-deconvolve-gp.ipynb].
