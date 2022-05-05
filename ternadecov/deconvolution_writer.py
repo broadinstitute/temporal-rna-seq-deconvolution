@@ -61,11 +61,10 @@ class DeconvolutionWriter:
         )
         ret_df["Time"] = times.numpy()
 
-        # FIXME: "Blood" and "Tissue" needs to be replaced with values from the summarization
         long_df = pd.melt(
             ret_df,
             ("Time",),
-            value_vars=("Blood", "Tissue"),
+            value_vars=list(celltype_summarization.keys()),
             var_name="Component",
             value_name="percent",
         )
@@ -73,7 +72,7 @@ class DeconvolutionWriter:
         if filename is not None:
             long_df.to_csv(filename)
 
-        if returnTable:
+        if return_table:
             return long_df
 
     def write_cell_compositions(
@@ -109,10 +108,6 @@ class DeconvolutionWriter:
 
         if return_table:
             return long_df
-
-    def write_trajectory_coefficients(self, filename, returnTable=True):
-        """Write trajectory coefficients to file (Not Implemented)"""
-        raise NotImplementedError()
 
     def write_sample_draws_quantiles(
         self, filename=None, n_draws=1000, return_table=True

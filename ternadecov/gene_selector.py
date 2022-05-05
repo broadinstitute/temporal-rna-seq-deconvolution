@@ -26,8 +26,6 @@ class GeneSelector:
 
         logging.info(f"Selecting genes with method: {feature_selection_method}")
 
-        print(f"log_sc_cutoff: {log_sc_cutoff}")
-
         selected_genes = ()
 
         if feature_selection_method == "common":

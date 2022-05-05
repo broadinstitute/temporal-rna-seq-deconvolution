@@ -2,6 +2,7 @@
 
 import matplotlib
 import matplotlib.pyplot
+import numpy as np
 import torch
 import pyro
 import math
@@ -10,7 +11,11 @@ import pandas as pd
 import seaborn as sns
 from typing import Optional, Tuple, Dict
 from ternadecov.time_deconv import TimeRegularizedDeconvolutionModel
-from ternadecov.plotting_functions import generate_posterior_samples
+from ternadecov.plotting_functions import (
+    generate_posterior_samples,
+    get_iqr_from_posterior_samples,
+    summarize_posterior_samples,
+)
 
 
 class DeconvolutionPlotter:
@@ -204,11 +209,15 @@ class DeconvolutionPlotter:
         xi_n = xi_nq.cpu().numpy()[:, 0]
 
         if show_combined:
-            fig, ax = plt.subplots(figsize=figsize)
+            fig, ax = matplotlib.pyplot.subplots(figsize=figsize)
         else:
-            ncols = kwargs["ncols"]
+            if "ncols" in kwargs.keys():
+                ncols = kwargs["ncols"]
+            else:
+                ncols = 3
+
             nrows = int(np.ceil(len(cell_type_labels) / ncols))
-            fig, axs = plt.subplots(
+            fig, axs = matplotlib.pyplot.subplots(
                 nrows,
                 ncols,
                 figsize=(figsize[0] * ncols, figsize[1] * nrows),
@@ -234,7 +243,7 @@ class DeconvolutionPlotter:
                 lw=lw,
             )
 
-            if iqr_alpha > 0:
+            if show_iqr and iqr_alpha > 0:
                 ax.fill_between(
                     actual_time_n,
                     iqr_lo_cn[i_cell_type],
