@@ -48,7 +48,7 @@ def evaluate_with_trajectory(
         dirichlet_alpha=10.0,
         trajectory_coef=trajectory_coef,
     )
-    simulated_bulk = generate_anndata_from_sim(sim_res, reference_dataset=sc_dataset)
+    simulated_bulk = generate_anndata_from_sim(sim_res, sc_dataset)
 
     ebov_simulated_dataset = DeconvolutionDataset(
         types=types,
