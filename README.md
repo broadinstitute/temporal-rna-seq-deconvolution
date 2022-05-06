@@ -26,3 +26,25 @@ Additional tutorials provide information on:
 * [Simulating sigmoid trajectories](notebooks/tutorials/tutorial-deconvolve-simulated-sigmoid.ipynb)
 * [Simulating periodic trajectories](notebooks/tutorials/tutorial-deconvolve-simulated-periodic.ipynb)
 * [Evaluating the time required to run the deconvolution for different numbers of samples](notebooks/tutorials/tutorial-evaluate-run-time-gp.ipynb)
+
+## CLI Use
+ternadecov offers an cli for automated deconvolution and exporting of results from the command line. An example run call could be:
+
+```bash
+
+ternadecov deconvolve \
+  --bulk-anndata bulk.h5ad \
+  --sc-anndata singlecell.h5ad \
+  --iterations 20000 \
+  --sc-celltype-column Abbreviation \
+  --bulk-time-column dpi_time \
+  --feature-selection-method overdispersed_bulk_and_high_sc \
+  --export-prefix results_ \
+  --export-directory output/
+```
+
+For more information on CLI usage try:
+
+```bash
+ternadecov --help
+```
