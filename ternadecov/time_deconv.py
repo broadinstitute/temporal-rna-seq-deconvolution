@@ -276,7 +276,7 @@ class TimeRegularizedDeconvolutionModel:
         log_frequency=100,
         verbose=True,
         clear_param_store=True,
-        keep_param_store_history=True,
+        keep_param_store_history=False,
     ):
         """Iteratively fit the mode
         
