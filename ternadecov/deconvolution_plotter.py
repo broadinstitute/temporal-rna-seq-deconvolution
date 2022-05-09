@@ -254,6 +254,8 @@ class DeconvolutionPlotter:
                 )
 
             ax.set_xlabel("Time")
+            ax.set_ylabel("Proportion")
+            
             if show_combined:
                 ax.set_title("Predicted cell proportions")
                 ax.legend(bbox_to_anchor=(1.04, 1), loc="upper left", fontsize="small")
@@ -324,15 +326,27 @@ class DeconvolutionPlotter:
 
         # TODO: Add colors, add titles
         for i in range(n_celltypes):
-            ax[i // nrow, i % nrow].fill_between(
+            ax_x_ind = i // nrow
+            ax_y_ind = i % nrow
+            
+            ax[ax_x_ind, ax_y_ind].fill_between(
                 xi_new_nq.cpu().numpy()[:, 0],
                 plotrange_kcn[0, i, :].numpy().T,
                 plotrange_kcn[2, i].numpy().T,
             )
-            ax[i // nrow, i % nrow].plot(
+            ax[ax_x_ind, ax_y_ind].plot(
                 xi_new_nq.cpu().numpy(), plotrange_kcn[1, i].cpu().numpy().T, c="black"
             )
-
+            
+            ax[ax_x_ind, ax_y_ind].set_ylabel('Proportion')
+            ax[ax_x_ind, ax_y_ind].set_xlabel('Time')
+            
+            celltype_name = self.deconvolution.dataset.cell_type_str_list[i]
+            
+            ax[ax_x_ind, ax_y_ind].set_title(celltype_name)
+        
+        fig.tight_layout()
+        
         for filename in filenames:
             matplotlib.pyplot.savefig(filename)
 
@@ -434,6 +448,9 @@ class DeconvolutionPlotter:
                 ),
                 rotation=90,
             )
+            
+            cur_axis.set_ylabel('Proportion')
+            cur_axis.set_xlabel('Time')
 
         fig.tight_layout()
 
@@ -478,6 +495,9 @@ class DeconvolutionPlotter:
                 x="time", y="proportion", data=df1, ax=ax[c_i, r_i], color=cm.tab10(i)
             )
             ax[c_i, r_i].set_title(self.deconvolution.dataset.cell_type_str_list[i])
+            
+            ax[c_i, r_i].set_ylabel('Proportion')
+            ax[c_i, r_i].set_xlabel('Time')
 
         matplotlib.pyplot.tight_layout()
 
@@ -579,12 +599,14 @@ class DeconvolutionPlotter:
                 )
                 ax.set_title("Predicted cell proportions")
                 ax.set_xlabel("Time")
+                ax.set_ylabel("Proportion")
                 ax.legend(
                     self.deconvolution.dataset.cell_type_str_list,
-                    loc="best",
                     fontsize="small",
+                    bbox_to_anchor=(1.04,1),
+                    loc="upper left"
                 )
-
+                
         for filename in filenames:
             matplotlib.pyplot.savefig(filename)
 
@@ -632,7 +654,10 @@ class DeconvolutionPlotter:
             celltype_summarization.keys(), loc="best", fontsize="small",
         )
         ax.set_ylim([0, 1])
-
+        ax.set_ylabel('Proportion')
+        ax.set_xlabel('Time')
+        
+        
         for filename in filenames:
             matplotlib.pyplot.savefig(filename)
 
@@ -684,6 +709,9 @@ class DeconvolutionPlotter:
                 color=cm.tab10(i),
             )
             ax[c_i, r_i].set_title(self.deconvolution.dataset.cell_type_str_list[i])
+            
+            ax[c_i, r_i].set_xlabel('Time')
+            ax[c_i, r_i].set_ylabel('Proportion')
 
         matplotlib.pyplot.tight_layout()
 
