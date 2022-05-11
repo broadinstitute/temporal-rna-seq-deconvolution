@@ -5,6 +5,8 @@ TeRNAdecov is a package for deconvolution of bulk RNA-seq samples from time seri
 ## Install
 Installation in an Anaconda environment is recommended.
 
+Install pyro (https://pyro.ai/) and pytorch 
+
 Clone the repository
 ```sh
 git clone git@github.com:broadinstitute/temporal-rna-seq-deconvolution
