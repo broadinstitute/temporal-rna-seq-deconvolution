@@ -3,10 +3,17 @@
 TeRNAdecov is a package for deconvolution of bulk RNA-seq samples from time series using single-cell datasets. It allows for simultaneous inference of sample-specific composition as well as overall time trajectory dynamics using highly scalable stochastic variational inference.
 
 ## Install
+Installation in an Anaconda environment is recommended.
+
 Clone the repository
 ```sh
 git clone git@github.com:broadinstitute/temporal-rna-seq-deconvolution
 cd temporal-rna-seq-deconvolution
+```
+
+In ubuntu you might need to install the following for the packages to compile
+```sh
+sudo apt-get install libglib2.0-dev python3-dev
 ```
 
 Install python package
