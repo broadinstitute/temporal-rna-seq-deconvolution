@@ -64,19 +64,8 @@ class NonTrajectoryModule(TrajectoryModule):
         self.num_cell_types = num_cell_types
         self.num_samples = num_samples
 
-        self.unnorm_cell_pop_loc_prior_mc = np.zeros(
-            (self.num_samples, self.num_cell_types)
-        )
-        self.unnorm_cell_pop_scale_prior_mc = np.ones(
-            (self.num_samples, self.num_cell_types)
-        )
-
-        self.unnorm_cell_pop_loc_posterior_mc = np.zeros(
-            (self.num_samples, self.num_cell_types)
-        )
-        self.unnorm_cell_pop_scale_posterior_mc = np.ones(
-            (self.num_samples, self.num_cell_types)
-        )
+        self.concentration_prior = np.ones((self.num_samples, self.num_cell_types)) / self.num_samples
+        self.concentration_posterior = np.ones((self.num_samples, self.num_cell_types)) / self.num_samples
 
     def model(self, xi_mq: torch.Tensor) -> torch.Tensor:
         """Main model
@@ -86,31 +75,21 @@ class NonTrajectoryModule(TrajectoryModule):
         
         """
 
-        unnorm_cell_pop_loc_prior_mc = pyro.param(
-            "unnorm_cell_pop_loc_prior_mc",
+        concentration_prior = pyro.param(
+            "concentration_prior",
             torch.tensor(
-                self.unnorm_cell_pop_loc_prior_mc, device=self.device, dtype=self.dtype,
-            ),
-        )
-
-        unnorm_cell_pop_scale_prior_mc = pyro.param(
-            "unnorm_cell_pop_scale_prior_mc",
-            torch.tensor(
-                self.unnorm_cell_pop_scale_prior_mc,
+                self.concentration_prior,
                 device=self.device,
                 dtype=self.dtype,
             ),
         )
 
-        unnorm_cell_pop_mc = pyro.sample(
-            "unnorm_cell_pop_mc",
-            dist.Normal(
-                loc=unnorm_cell_pop_loc_prior_mc, scale=unnorm_cell_pop_scale_prior_mc,
-            ).to_event(2),
+        norm_cell_pop_mc = pyro.sample(
+            "norm_cell_pop_mc",
+            dist.Dirichlet(
+                concentration_prior
+            ).to_event(1) 
         )
-
-        norm_cell_pop_mc = torch.nn.functional.softmax(unnorm_cell_pop_mc, dim=-1)
-        assert norm_cell_pop_mc.shape == (self.num_samples, self.num_cell_types,)
 
         return norm_cell_pop_mc
 
@@ -124,34 +103,21 @@ class NonTrajectoryModule(TrajectoryModule):
         
         """
 
-        unnorm_cell_pop_loc_posterior_mc = pyro.param(
-            "unnorm_cell_pop_loc_posterior_mc",
-            torch.tensor(
-                self.unnorm_cell_pop_loc_posterior_mc,
-                device=self.device,
-                dtype=self.dtype,
-            ),
+        concentration_posterior = pyro.param(
+             "concentration_posterior",
+             torch.tensor(
+                 self.concentration_posterior,
+                 device=self.device,
+                 dtype=self.dtype,
+             ),
+            constraint=constraints.positive,
         )
 
-        unnorm_cell_pop_scale_posterior_mc = pyro.param(
-            "unnorm_cell_pop_scale_posterior_mc",
-            torch.tensor(
-                self.unnorm_cell_pop_scale_posterior_mc,
-                device=self.device,
-                dtype=self.dtype,
-            ),
-        )
-
-        unnorm_cell_pop_posterior_mc = pyro.sample(
-            "unnorm_cell_pop_mc",
-            dist.Normal(
-                loc=unnorm_cell_pop_loc_posterior_mc,
-                scale=unnorm_cell_pop_scale_posterior_mc,
-            ).to_event(2),
-        )
-
-        norm_cell_pop_mc = torch.nn.functional.softmax(
-            unnorm_cell_pop_posterior_mc, dim=-1
+        norm_cell_pop_mc = pyro.sample(
+            "norm_cell_pop_mc",
+            dist.Dirichlet(
+               concentration_posterior
+            ).to_event(1)
         )
 
         return norm_cell_pop_mc
