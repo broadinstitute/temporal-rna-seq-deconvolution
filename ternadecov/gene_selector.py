@@ -68,7 +68,7 @@ class GeneSelector:
             # Select highly-expressed in single-cell
 
             selected_genes_sc = set(
-                sc_anndata.var.index[np.log(sc_anndata.X.sum(0) + 1) > log_sc_cutoff]
+                sc_anndata.var.index[np.log(np.array(sc_anndata.X.sum(0)).squeeze() + 1) > log_sc_cutoff]
             )
 
             selected_genes = list(selected_genes_bulk.intersection(selected_genes_sc))
