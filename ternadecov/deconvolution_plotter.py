@@ -689,7 +689,7 @@ class DeconvolutionPlotter:
         else:
             raise NotImplementedError("Unknown trajectory model type")
 
-        sort_order = torch.argsort(self.deconvolution.dataset.t_m)
+        sort_order = torch.argsort(t_m)
 
         n_cell_types = cell_pop_mc.shape[1]
 
